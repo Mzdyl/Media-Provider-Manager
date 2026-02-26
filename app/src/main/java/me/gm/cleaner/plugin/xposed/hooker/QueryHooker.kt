@@ -35,8 +35,10 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.FilteredCursor
+import java.lang.reflect.Method
 import java.util.function.Consumer
 import java.util.function.Function
+import java.util.Optional
 
 class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
@@ -88,15 +90,25 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
         val helper = XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+
+        // Android 16+ (API 36) fuzzy matching for getQueryBuilder
         val qb = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
-                object : Consumer<String> {
-                    override fun accept(t: String) {
-                        honoredArgs.add(t)
-                    }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                try {
+                    // Try standard Android 11+ signature first
+                    XposedHelpers.callMethod(
+                        param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
+                        object : Consumer<String> {
+                            override fun accept(t: String) {
+                                honoredArgs.add(t)
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    // Fuzzy matching for Android 16+ and Samsung devices
+                    invokeGetQueryBuilderFuzzy(param.thisObject, TYPE_QUERY, table, uri, query, honoredArgs)
                 }
-            )
+            }
 
             Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
                 param.thisObject, "getQueryBuilder", TYPE_QUERY, uri, table, query
@@ -248,9 +260,104 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
     }
 
     companion object {
+        private const val TAG = "MPM_QueryHooker"
         private const val INCLUDED_DEFAULT_DIRECTORIES = "android:included-default-directories"
         private const val TYPE_QUERY = 0
-
         private const val MAX_SIZE = 1000
+    
+        @Volatile
+        private var cachedGetQueryBuilder: Method? = null
+    
+        /**
+        * Fuzzy matching for getQueryBuilder to support Android 16+ and Samsung devices.
+        * This dynamically finds and invokes the correct getQueryBuilder method signature.
+        */
+        private fun invokeGetQueryBuilderFuzzy(
+            mediaProvider: Any,
+            type: Int,
+            table: Int,
+            uri: Uri,
+            query: Bundle,
+            honoredArgs: ArraySet<String>
+        ): Any {
+            val clazz = mediaProvider.javaClass
+            val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
+    
+            for (method in methods) {
+                try {
+                    val args = buildArgumentsForMethod(
+                        method,
+                        TYPE_QUERY,
+                        0,
+                        Uri.EMPTY,
+                        Bundle(),
+                        ArraySet()
+                    )
+                    if (args != null) {
+                        method.isAccessible = true
+                        return method
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+            throw NoSuchMethodException("No compatible getQueryBuilder found")
+        }
+    
+        /**
+        * Build arguments safely
+        */
+        private fun buildArgumentsForMethod(
+            method: Method,
+            type: Int,
+            table: Int,
+            uri: Uri,
+            query: Bundle,
+            honoredArgs: ArraySet<String>
+        ): Array<Any?>? {
+            val paramTypes = method.parameterTypes
+            val args = ArrayList<Any?>(paramTypes.size)
+            var intIndex = 0
+    
+            for (paramType in paramTypes) {
+                when {
+                    // int / Integer
+                    paramType == Int::class.javaPrimitiveType ||
+                            paramType == Int::class.java -> {
+                        args.add(
+                            when (intIndex++) {
+                                0 -> type
+                                1 -> table
+                                else -> 0
+                            }
+                        )
+                    }
+                    // Uri
+                    paramType == Uri::class.java -> {
+                        args.add(uri)
+                    }
+                    // Bundle
+                    paramType == Bundle::class.java -> {
+                        args.add(query)
+                    }
+                    // Consumer
+                    Consumer::class.java.isAssignableFrom(paramType) -> {
+                        args.add(
+                            Consumer<String> { honoredArgs.add(it) }
+                        )
+                    }
+                    // Optional family (future safe)
+                    paramType.name.startsWith("java.util.Optional") -> {
+                        // Android 16+ uses Optional parameters
+                        args.add(Optional.empty<Any?>())
+                    }
+                    else -> {
+                        // Unknown parameter type, cannot match this signature
+                        return null
+                    }
+                }
+            }
+            return args.toTypedArray()
+        }
     }
+
 }
