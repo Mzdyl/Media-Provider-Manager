@@ -56,77 +56,106 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             // Scanning files and internal queries.
             return
         }
+        XposedBridge.log("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
 
         /** PARSE */
         val query = Bundle(queryArgs)
         query.remove(INCLUDED_DEFAULT_DIRECTORIES)
         val honoredArgs = ArraySet<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val databaseUtilsClass = XposedHelpers.findClass(
-                "com.android.providers.media.util.DatabaseUtils", service.classLoader
-            )
-            XposedHelpers.callStaticMethod(
-                databaseUtilsClass, "resolveQueryArgs", query, object : Consumer<String> {
-                    override fun accept(t: String) {
-                        honoredArgs.add(t)
+            try {
+                val databaseUtilsClass = XposedHelpers.findClass(
+                    "com.android.providers.media.util.DatabaseUtils", service.classLoader
+                )
+                XposedHelpers.callStaticMethod(
+                    databaseUtilsClass, "resolveQueryArgs", query, object : Consumer<String> {
+                        override fun accept(t: String) {
+                            honoredArgs.add(t)
+                        }
+                    }, object : Function<String, String> {
+                        override fun apply(t: String) = XposedHelpers.callMethod(
+                            param.thisObject, "ensureCustomCollator", t
+                        ) as String
                     }
-                }, object : Function<String, String> {
-                    override fun apply(t: String) = XposedHelpers.callMethod(
-                        param.thisObject, "ensureCustomCollator", t
-                    ) as String
-                }
-            )
+                )
+            } catch (t: Throwable) {
+                XposedBridge.log("Error in resolveQueryArgs: $t")
+            }
         }
         if (isClientQuery(param.callingPackage, uri)) {
             param.result = handleClientQuery(projection, query)
             return
         }
         val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        XposedBridge.log("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
             table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
-        val helper = XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
-        val qb = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
-                object : Consumer<String> {
-                    override fun accept(t: String) {
-                        honoredArgs.add(t)
+        val helper = try {
+            XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+        } catch (t: Throwable) {
+            XposedBridge.log("Error calling getDatabaseForUri: $t")
+            null
+        }
+        val qb = try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
+                    param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
+                    object : Consumer<String> {
+                        override fun accept(t: String) {
+                            honoredArgs.add(t)
+                        }
                     }
-                }
-            )
+                )
 
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                param.thisObject, "getQueryBuilder", TYPE_QUERY, uri, table, query
-            )
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
+                    param.thisObject, "getQueryBuilder", TYPE_QUERY, uri, table, query
+                )
 
-            else -> throw UnsupportedOperationException()
+                else -> throw UnsupportedOperationException()
+            }
+        } catch (t: Throwable) {
+            XposedBridge.log("Error getting QueryBuilder: $t")
+            null
+        }
+
+        if (qb == null) {
+            XposedBridge.log("QueryBuilder is null, skipping hook logic")
+            return
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val targetSdkVersion = XposedHelpers.callMethod(
-                param.thisObject, "getCallingPackageTargetSdkVersion"
-            ) as Int
-            val databaseUtilsClass = XposedHelpers.findClass(
-                "com.android.providers.media.util.DatabaseUtils", service.classLoader
-            )
-            if (targetSdkVersion < Build.VERSION_CODES.R) {
-                // Some apps are abusing "ORDER BY" clauses to inject "LIMIT"
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(databaseUtilsClass, "recoverAbusiveSortOrder", query)
-
-                // Some apps are abusing the Uri query parameters to inject LIMIT
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(
-                    databaseUtilsClass, "recoverAbusiveLimit", uri, query
+            try {
+                val targetSdkVersion = XposedHelpers.callMethod(
+                    param.thisObject, "getCallingPackageTargetSdkVersion"
+                ) as Int
+                val databaseUtilsClass = XposedHelpers.findClass(
+                    "com.android.providers.media.util.DatabaseUtils", service.classLoader
                 )
-            }
-            if (targetSdkVersion < Build.VERSION_CODES.Q) {
-                // Some apps are abusing the "WHERE" clause by injecting "GROUP BY"
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(databaseUtilsClass, "recoverAbusiveSelection", query)
+                if (targetSdkVersion < Build.VERSION_CODES.R) {
+                    // Some apps are abusing "ORDER BY" clauses to inject "LIMIT"
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveSortOrder", query
+                    )
+
+                    // Some apps are abusing the Uri query parameters to inject LIMIT
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveLimit", uri, query
+                    )
+                }
+                if (targetSdkVersion < Build.VERSION_CODES.Q) {
+                    // Some apps are abusing the "WHERE" clause by injecting "GROUP BY"
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveSelection", query
+                    )
+                }
+            } catch (t: Throwable) {
+                XposedBridge.log("Error in targetSdkVersion processing: $t")
             }
         }
 
@@ -165,7 +194,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 else -> throw UnsupportedOperationException()
             } as Cursor
         } catch (e: XposedHelpers.InvocationTargetError) {
-            // IllegalArgumentException that thrown from the media provider. Nothing I can do.
+            XposedBridge.log("InvocationTargetError in qb.query: ${e.targetException}")
+            return
+        } catch (t: Throwable) {
+            XposedBridge.log("Error in qb.query: $t")
             return
         }
         if (c.count == 0) {
@@ -173,6 +205,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             c.close()
             return
         }
+        XposedBridge.log("Query returned ${c.count} items")
         val dataColumn = c.getColumnIndexOrThrow(FileColumns.DATA)
         val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 

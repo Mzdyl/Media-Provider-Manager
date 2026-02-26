@@ -35,25 +35,34 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
 
     @Throws(Throwable::class)
     private fun onMediaProviderLoaded(lpparam: LoadPackageParam, context: Context) {
+        XposedBridge.log("MediaProvider loaded: ${lpparam.packageName}")
         val mediaProvider = try {
             XposedHelpers.findClass(
                 "com.android.providers.media.MediaProvider", lpparam.classLoader
             )
         } catch (e: XposedHelpers.ClassNotFoundError) {
+            XposedBridge.log("MediaProvider class not found!")
             return
         }
         // only save MediaProvider's classLoader
         classLoader = lpparam.classLoader
         onCreate(context)
-        XposedBridge.hookAllMethods(
-            mediaProvider, "queryInternal", QueryHooker(this@XposedInit)
-        )
-        XposedBridge.hookAllMethods(
-            mediaProvider, "insertFile", InsertHooker(this@XposedInit)
-        )
-        XposedBridge.hookAllMethods(
-            mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)
-        )
+        try {
+            XposedBridge.hookAllMethods(
+                mediaProvider, "queryInternal", QueryHooker(this@XposedInit)
+            )
+            XposedBridge.log("Hooked queryInternal")
+            XposedBridge.hookAllMethods(
+                mediaProvider, "insertFile", InsertHooker(this@XposedInit)
+            )
+            XposedBridge.log("Hooked insertFile")
+            XposedBridge.hookAllMethods(
+                mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)
+            )
+            XposedBridge.log("Hooked deleteInternal")
+        } catch (t: Throwable) {
+            XposedBridge.log("Error hooking MediaProvider: $t")
+        }
     }
 
     @Throws(Throwable::class)

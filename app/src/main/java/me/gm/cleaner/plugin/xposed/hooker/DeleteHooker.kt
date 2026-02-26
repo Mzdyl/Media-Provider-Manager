@@ -42,25 +42,42 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
         /** ARGUMENTS */
         val uri = param.args[0] as Uri
         val extras = param.args[1] as? Bundle ?: Bundle.EMPTY
-        val userWhere: String? = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getString(
-                QUERY_ARG_SQL_SELECTION
-            )
+        XposedBridge.log("deleteInternal called: uri=$uri, callingPackage=${param.callingPackage}")
+        val userWhere: String? = try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getString(
+                    QUERY_ARG_SQL_SELECTION
+                )
 
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[1] as? String
-            else -> throw UnsupportedOperationException()
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[1] as? String
+                else -> throw UnsupportedOperationException()
+            }
+        } catch (t: Throwable) {
+            XposedBridge.log("Error getting userWhere: $t")
+            null
         }
-        val userWhereArgs: Array<String>? = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getStringArray(
-                QUERY_ARG_SQL_SELECTION_ARGS
-            )
+        val userWhereArgs: Array<String>? = try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getStringArray(
+                    QUERY_ARG_SQL_SELECTION_ARGS
+                )
 
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[2] as? Array<String>
-            else -> throw UnsupportedOperationException()
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[2] as? Array<String>
+                else -> throw UnsupportedOperationException()
+            }
+        } catch (t: Throwable) {
+            XposedBridge.log("Error getting userWhereArgs: $t")
+            null
         }
 
         /** PARSE */
-        val match = param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        val match = try {
+            param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        } catch (t: Throwable) {
+            XposedBridge.log("Error matching URI: $t")
+            return
+        }
+        XposedBridge.log("Matched table: $match")
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         when (match) {
