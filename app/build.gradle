@@ -41,6 +41,9 @@ android {
         aidl true
         viewBinding true
     }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
     lint {
         checkDependencies true
     }
