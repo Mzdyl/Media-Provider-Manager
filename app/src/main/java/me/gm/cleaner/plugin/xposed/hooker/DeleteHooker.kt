@@ -42,7 +42,7 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
         /** ARGUMENTS */
         val uri = param.args[0] as Uri
         val extras = param.args[1] as? Bundle ?: Bundle.EMPTY
-        XposedBridge.log("deleteInternal called: uri=$uri, callingPackage=${param.callingPackage}")
+        dlog("deleteInternal called: uri=$uri, callingPackage=${param.callingPackage}")
         val userWhere: String? = try {
             when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getString(
@@ -53,7 +53,7 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                 else -> throw UnsupportedOperationException()
             }
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting userWhere: $t")
+            dlog("Error getting userWhere: $t")
             null
         }
         val userWhereArgs: Array<String>? = try {
@@ -66,7 +66,7 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                 else -> throw UnsupportedOperationException()
             }
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting userWhereArgs: $t")
+            dlog("Error getting userWhereArgs: $t")
             null
         }
 
@@ -74,10 +74,10 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
         val match = try {
             param.matchUri(uri, param.isCallingPackageAllowedHidden)
         } catch (t: Throwable) {
-            XposedBridge.log("Error matching URI: $t")
+            dlog("Error matching URI: $t")
             return
         }
-        XposedBridge.log("Matched table: $match")
+        dlog("Matched table: $match")
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         when (match) {

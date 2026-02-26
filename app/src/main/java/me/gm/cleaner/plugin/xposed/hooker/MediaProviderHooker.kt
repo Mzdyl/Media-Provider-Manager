@@ -18,9 +18,16 @@ package me.gm.cleaner.plugin.xposed.hooker
 
 import android.net.Uri
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
+import me.gm.cleaner.plugin.BuildConfig
 
 interface MediaProviderHooker {
+    fun dlog(message: String) {
+        if (BuildConfig.DEBUG) {
+            XposedBridge.log("MPM_DEBUG: $message")
+        }
+    }
     fun XC_MethodHook.MethodHookParam.ensureMediaProvider() {
         require(method.declaringClass.name == "com.android.providers.media.MediaProvider")
     }

@@ -56,7 +56,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             // Scanning files and internal queries.
             return
         }
-        XposedBridge.log("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
+        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
 
         /** PARSE */
         val query = Bundle(queryArgs)
@@ -79,7 +79,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                     }
                 )
             } catch (t: Throwable) {
-                XposedBridge.log("Error in resolveQueryArgs: $t")
+                dlog("Error in resolveQueryArgs: $t")
             }
         }
         if (isClientQuery(param.callingPackage, uri)) {
@@ -87,7 +87,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             return
         }
         val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
-        XposedBridge.log("Matched table: $table")
+        dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
             table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
@@ -96,7 +96,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val helper = try {
             XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
         } catch (t: Throwable) {
-            XposedBridge.log("Error calling getDatabaseForUri: $t")
+            dlog("Error calling getDatabaseForUri: $t")
             null
         }
         val qb = try {
@@ -117,12 +117,12 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 else -> throw UnsupportedOperationException()
             }
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting QueryBuilder: $t")
+            dlog("Error getting QueryBuilder: $t")
             null
         }
 
         if (qb == null) {
-            XposedBridge.log("QueryBuilder is null, skipping hook logic")
+            dlog("QueryBuilder is null, skipping hook logic")
             return
         }
 
@@ -155,7 +155,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                     )
                 }
             } catch (t: Throwable) {
-                XposedBridge.log("Error in targetSdkVersion processing: $t")
+                dlog("Error in targetSdkVersion processing: $t")
             }
         }
 
@@ -194,10 +194,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 else -> throw UnsupportedOperationException()
             } as Cursor
         } catch (e: XposedHelpers.InvocationTargetError) {
-            XposedBridge.log("InvocationTargetError in qb.query: ${e.targetException}")
+            dlog("InvocationTargetError in qb.query: ${e.targetException}")
             return
         } catch (t: Throwable) {
-            XposedBridge.log("Error in qb.query: $t")
+            dlog("Error in qb.query: $t")
             return
         }
         if (c.count == 0) {
@@ -205,7 +205,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             c.close()
             return
         }
-        XposedBridge.log("Query returned ${c.count} items")
+        dlog("Query returned ${c.count} items")
         val dataColumn = c.getColumnIndexOrThrow(FileColumns.DATA)
         val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 

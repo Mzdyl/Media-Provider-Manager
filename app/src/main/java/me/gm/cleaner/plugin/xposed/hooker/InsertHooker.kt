@@ -42,43 +42,43 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             return
         }
         /** ARGUMENTS */
-        XposedBridge.log("insertFile called. Args size: ${param.args.size}")
+        dlog("insertFile called. Args size: ${param.args.size}")
         param.args.forEachIndexed { index, arg ->
-            XposedBridge.log("arg[$index]: ${arg?.javaClass?.name} = $arg")
+            dlog("arg[$index]: ${arg?.javaClass?.name} = $arg")
         }
 
         val match = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[2] else param.args[1]
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting match arg: $t")
+            dlog("Error getting match arg: $t")
             null
         } as? Int ?: return
 
         val uri = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[3] else param.args[2]
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting uri arg: $t")
+            dlog("Error getting uri arg: $t")
             null
         } as? Uri ?: return
 
         val extras = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[4] else Bundle.EMPTY
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting extras arg: $t")
+            dlog("Error getting extras arg: $t")
             Bundle.EMPTY
         } as Bundle
 
         val values = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[5] else param.args[3]
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting values arg: $t")
+            dlog("Error getting values arg: $t")
             null
         } as? ContentValues ?: return
 
         val mediaType = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[6] else param.args[4]
         } catch (t: Throwable) {
-            XposedBridge.log("Error getting mediaType arg: $t")
+            dlog("Error getting mediaType arg: $t")
             0
         } as Int
 
