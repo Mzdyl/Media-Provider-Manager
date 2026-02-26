@@ -17,17 +17,102 @@
 package me.gm.cleaner.plugin.xposed.hooker
 
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.BuildConfig
+import java.lang.reflect.Method
+import java.util.Optional
 
 interface MediaProviderHooker {
+    companion object {
+        private var lastLog: String? = null
+        private var lastLogTime: Long = 0
+        
+        // 缓存方法对象以提高性能
+        private var queryBuilderMethod: Method? = null
+        private var isQueryBuilderResolved = false
+    }
+
     fun dlog(message: String) {
         if (BuildConfig.DEBUG) {
+            val now = System.currentTimeMillis()
+            if (message == lastLog && now - lastLogTime < 1000) {
+                return
+            }
+            lastLog = message
+            lastLogTime = now
             XposedBridge.log("MPM_DEBUG: $message")
         }
     }
+
+    private fun resolveQueryBuilderMethod(thisObject: Any) {
+        if (isQueryBuilderResolved) return
+        val clazz = thisObject.javaClass
+        
+        val signatures = arrayOf(
+            // Android 16: 6 args
+            arrayOf(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Uri::class.java, Bundle::class.java, java.util.function.Consumer::class.java, Optional::class.java),
+            // Android 11-15: 5 args
+            arrayOf(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Uri::class.java, Bundle::class.java, java.util.function.Consumer::class.java),
+            // Android 10: Q
+            arrayOf(Int::class.javaPrimitiveType, Uri::class.java, Int::class.javaPrimitiveType, Bundle::class.java)
+        )
+
+        for (sig in signatures) {
+            try {
+                queryBuilderMethod = XposedHelpers.findMethodExact(clazz, "getQueryBuilder", *sig)
+                queryBuilderMethod?.isAccessible = true
+                dlog("Resolved getQueryBuilder with ${sig.size} parameters")
+                break
+            } catch (t: Throwable) {
+                continue
+            }
+        }
+        isQueryBuilderResolved = true
+    }
+
+    fun callGetQueryBuilder(
+        thisObject: Any, type: Int, table: Int, uri: Uri, query: Bundle,
+        honoredArgs: java.util.function.Consumer<String>
+    ): Any? {
+        resolveQueryBuilderMethod(thisObject)
+        val m = queryBuilderMethod ?: return null
+        
+        return try {
+            when (m.parameterTypes.size) {
+                6 -> m.invoke(thisObject, type, table, uri, query, honoredArgs, Optional.empty<Any>())
+                5 -> m.invoke(thisObject, type, table, uri, query, honoredArgs)
+                4 -> m.invoke(thisObject, type, uri, table, query)
+                else -> null
+            }
+        } catch (t: Throwable) {
+            dlog("Error invoking getQueryBuilder: $t")
+            null
+        }
+    }
+
+    fun callGetQueryBuilderDelete(
+        thisObject: Any, type: Int, match: Int, uri: Uri, extras: Bundle
+    ): Any? {
+        resolveQueryBuilderMethod(thisObject)
+        val m = queryBuilderMethod ?: return null
+        
+        return try {
+            when (m.parameterTypes.size) {
+                6 -> m.invoke(thisObject, type, match, uri, extras, null, Optional.empty<Any>())
+                5 -> m.invoke(thisObject, type, match, uri, extras, null)
+                4 -> m.invoke(thisObject, type, uri, match, null)
+                else -> null
+            }
+        } catch (t: Throwable) {
+            dlog("Error invoking getQueryBuilder (Delete): $t")
+            null
+        }
+    }
+
     fun XC_MethodHook.MethodHookParam.ensureMediaProvider() {
         require(method.declaringClass.name == "com.android.providers.media.MediaProvider")
     }

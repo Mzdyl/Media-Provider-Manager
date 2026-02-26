@@ -61,21 +61,19 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         /** PARSE */
         val query = Bundle(queryArgs)
         query.remove(INCLUDED_DEFAULT_DIRECTORIES)
-        val honoredArgs = ArraySet<String>()
+        val honoredArgsSet = ArraySet<String>()
+        val honoredArgs = java.util.function.Consumer<String> { t ->
+            honoredArgsSet.add(t)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 val databaseUtilsClass = XposedHelpers.findClass(
                     "com.android.providers.media.util.DatabaseUtils", service.classLoader
                 )
                 XposedHelpers.callStaticMethod(
-                    databaseUtilsClass, "resolveQueryArgs", query, object : Consumer<String> {
-                        override fun accept(t: String) {
-                            honoredArgs.add(t)
-                        }
-                    }, object : Function<String, String> {
-                        override fun apply(t: String) = XposedHelpers.callMethod(
-                            param.thisObject, "ensureCustomCollator", t
-                        ) as String
+                    databaseUtilsClass, "resolveQueryArgs", query, honoredArgs,
+                    java.util.function.Function<String, String> { t ->
+                        XposedHelpers.callMethod(param.thisObject, "ensureCustomCollator", t) as String
                     }
                 )
             } catch (t: Throwable) {
@@ -99,27 +97,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             dlog("Error calling getDatabaseForUri: $t")
             null
         }
-        val qb = try {
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                    param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
-                    object : Consumer<String> {
-                        override fun accept(t: String) {
-                            honoredArgs.add(t)
-                        }
-                    }
-                )
-
-                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                    param.thisObject, "getQueryBuilder", TYPE_QUERY, uri, table, query
-                )
-
-                else -> throw UnsupportedOperationException()
-            }
-        } catch (t: Throwable) {
-            dlog("Error getting QueryBuilder: $t")
-            null
-        }
+        val qb = callGetQueryBuilder(param.thisObject, TYPE_QUERY, table, uri, query, honoredArgs)
 
         if (qb == null) {
             dlog("QueryBuilder is null, skipping hook logic")

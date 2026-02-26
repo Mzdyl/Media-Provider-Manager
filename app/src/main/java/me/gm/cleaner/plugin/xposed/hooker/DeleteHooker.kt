@@ -100,19 +100,15 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                     }
                 }
 
-                val qb = when {
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                        param.thisObject, "getQueryBuilder", TYPE_DELETE, match, uri,
-                        extras, null
-                    )
-
-                    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                        param.thisObject, "getQueryBuilder", TYPE_DELETE, uri, match, null
-                    )
-
-                    else -> throw UnsupportedOperationException()
+                val qb = callGetQueryBuilderDelete(param.thisObject, TYPE_DELETE, match, uri, extras)
+                if (qb == null) return
+                val helper = try {
+                    XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+                } catch (t: Throwable) {
+                    dlog("Error calling getDatabaseForUri in DeleteHooker: $t")
+                    null
                 }
-                val helper = XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+                if (helper == null) return
                 val projection = arrayOf(
                     FileColumns.MEDIA_TYPE,
                     FileColumns.DATA,
