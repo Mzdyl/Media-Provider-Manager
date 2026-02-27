@@ -33,20 +33,6 @@ allprojects {
     }
 }
 
-subprojects {
-    plugins.withId('com.android.library') {
-        if (project.name == 'photoview') {
-            project.android {
-                buildTypes {
-                    release {
-                        minifyEnabled false
-                    }
-                }
-            }
-        }
-    }
-}
-
 task clean(type: Delete) {
     delete rootProject.layout.buildDirectory
 }
