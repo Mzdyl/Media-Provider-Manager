@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.setFragmentResultListener
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
@@ -79,7 +80,7 @@ class SettingsFragment : AbsSettingsFragment() {
 
             getString(R.string.backup_key) -> {
                 itemView.setOnClickListener {
-                    val rulesJson = service.readSp(R.xml.template_preferences)
+                    val rulesJson = binderViewModel.readSp(R.xml.template_preferences)
                     BackupUtils.backupToClipboard(requireContext(), rulesJson)
                 }
             }
@@ -88,7 +89,7 @@ class SettingsFragment : AbsSettingsFragment() {
                 itemView.setOnClickListener {
                     val json = BackupUtils.getFromClipboard(requireContext())
                     if (json != null) {
-                        service.writeSp(R.xml.template_preferences, json)
+                        binderViewModel.writeSp(R.xml.template_preferences, json)
                         Toast.makeText(requireContext(), R.string.restore_ok, Toast.LENGTH_SHORT).show()
                     }
                 }
