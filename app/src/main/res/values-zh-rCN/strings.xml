@@ -108,4 +108,13 @@
     <string name="intercept_download_manager_summary">有时应用会先保存文件，然后再通知媒体存储。在这种情况下，我们只能拦截媒体存储对媒体文件的记录，而无法阻止保存文件。\n首先编写拦截规则。规则与上一个实验大致相同，只是应用到应用改为下载管理程序和媒体存储设备。点击开始可以快速添加此规则。\n然后点击实验一的开始，切换到图片页面，观察是否能看到图片。最后用文件管理器打开 Pictures/MPM/，观察是否能看到图片。</string>
     <string name="intercept_query_title">拦截查询</string>
     <string name="intercept_query_summary">首先编写拦截规则。在应用管理中找到本应用，点击创建模板，挂钩操作去掉插入，允许的媒体类型去掉图片。点击开始可以快速添加此规则。\n然后切换到图片页面与文件页面，观察是否能看到图片。</string>
+
+    <!-- 备份与恢复 -->
+    <string name="backup_restore_header">备份与恢复</string>
+    <string name="backup_title">备份规则到剪贴板</string>
+    <string name="restore_title">从剪贴板恢复规则</string>
+    <string name="backup_ok">已备份规则到剪贴板</string>
+    <string name="backup_fail_empty">备份失败：没有有效的规则</string>
+    <string name="restore_ok">规则恢复成功</string>
+    <string name="restore_fail_invalid">恢复失败：剪贴板中没有有效的 JSON 规则</string>
 </resources>

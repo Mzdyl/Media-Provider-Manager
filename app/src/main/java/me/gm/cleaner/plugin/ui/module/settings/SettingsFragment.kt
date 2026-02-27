@@ -29,6 +29,7 @@ import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.transition.platform.Hold
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.ktx.mediumAnimTime
+import me.gm.cleaner.plugin.xposed.util.BackupUtils
 
 class SettingsFragment : AbsSettingsFragment() {
     override val who: Int
@@ -74,6 +75,23 @@ class SettingsFragment : AbsSettingsFragment() {
                     navController.navigate(direction, extras)
                 }
                 parentFragment?.startPostponedEnterTransition()
+            }
+
+            getString(R.string.backup_key) -> {
+                itemView.setOnClickListener {
+                    val rulesJson = service.readSp(R.xml.template_preferences)
+                    BackupUtils.backupToClipboard(requireContext(), rulesJson)
+                }
+            }
+
+            getString(R.string.restore_key) -> {
+                itemView.setOnClickListener {
+                    val json = BackupUtils.getFromClipboard(requireContext())
+                    if (json != null) {
+                        service.writeSp(R.xml.template_preferences, json)
+                        Toast.makeText(requireContext(), R.string.restore_ok, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     }
