@@ -55,7 +55,7 @@
     <string name="share">分享</string>
     <string name="screen_rotation">旋轉螢幕</string>
     <string name="info">訊息</string>
-    <string name="info_item">%s：%s</string>
+    <string name="info_item">%1$s：%2$s</string>
     <string name="resolution">解析度</string>
     <string name="menu_sort_by_path_title">路徑</string>
     <string name="menu_sort_by_date_taken_title">建立日期</string>
@@ -108,4 +108,13 @@
     <string name="intercept_download_manager_summary">有時應用會先保存文件，然後再通知媒體儲存。在這種情況下，我們只能攔截媒體儲存對媒體檔案的紀錄，而無法阻止保存文件。\n首先編寫攔截規則。規則與上一個實驗大致相同，只是應用到應用改為下載管理程序和媒體儲存設備。點擊開始可以快速添加此規則。\n然後點擊實驗一的開始，切換到圖片頁面，觀察是否能看到圖片。最後用檔案管理器打開 Pictures/MPM/，觀察是否能看到圖片。</string>
     <string name="intercept_query_title">攔截查詢</string>
     <string name="intercept_query_summary">首先編寫攔截規則。在應用管理中找到本應用，點擊創建模板，掛鉤操作去掉插入，允許的媒體類型去掉圖片。點擊開始可以快速添加此規則。\n然後切換到圖片頁面與文件頁面，觀察是否能看到圖片。</string>
+    
+    <!-- 備份與還原 -->
+    <string name="backup_restore_header">備份與還原</string>
+    <string name="backup_title">備份規則到剪貼簿</string>
+    <string name="restore_title">從剪貼簿還原規則</string>
+    <string name="backup_ok">已備份規則到剪貼簿</string>
+    <string name="backup_fail_empty">備份失敗：沒有有效的規則</string>
+    <string name="restore_ok">規則還原成功</string>
+    <string name="restore_fail_invalid">還原失敗：剪貼簿中沒有有效的 JSON 規則</string>
 </resources>

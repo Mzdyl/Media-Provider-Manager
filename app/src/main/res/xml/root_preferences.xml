@@ -49,4 +49,20 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="@string/backup_restore_header">
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="@string/backup_key"
+            app:title="@string/backup_title" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="@string/restore_key"
+            app:title="@string/restore_title" />
+
+    </PreferenceCategory>
+
 </PreferenceScreen>

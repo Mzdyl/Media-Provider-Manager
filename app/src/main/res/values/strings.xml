@@ -62,7 +62,7 @@
     <string name="share">Share</string>
     <string name="screen_rotation">Screen rotation</string>
     <string name="info">Info</string>
-    <string name="info_item">%s: %s</string>
+    <string name="info_item">%1$s: %2$s</string>
     <string name="resolution">Resolution</string>
     <string name="sort_media_key" translatable="false">sort_media</string>
     <string name="menu_sort_by_path_title">Path</string>
@@ -156,7 +156,14 @@
         click Create template, remove Insert from Hook operation, and remove Image from Permitted media types.
         Click Start can add this rule directly.\nThen switch to the Images page and the Files page to see if you can see the image.</string>
 
-    <!--    <string name="playground_title_do_it_yourself">Do It Yourself</string>-->
-    <!--    <string name="do_it_yourself_title"></string>-->
-    <!--    <string name="do_it_yourself_summary"></string>-->
+    <!-- Backup and Restore -->
+    <string name="backup_restore_header">Backup &amp; Restore</string>
+    <string name="backup_key" translatable="false">backup</string>
+    <string name="restore_key" translatable="false">restore</string>
+    <string name="backup_title">Backup rules to clipboard</string>
+    <string name="restore_title">Restore rules from clipboard</string>
+    <string name="backup_ok">Rules backed up to clipboard</string>
+    <string name="backup_fail_empty">Backup failed: no valid rules</string>
+    <string name="restore_ok">Rules restored successfully</string>
+    <string name="restore_fail_invalid">Restore failed: no valid JSON rules in clipboard</string>
 </resources>
