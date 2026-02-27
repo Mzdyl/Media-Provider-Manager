@@ -26,22 +26,47 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Decode Keystore
+      - name: Build Unsigned APK
+        run: ./gradlew assembleRelease
+
+      - name: Sign APK with apksigner
         env:
           SIGNING_KEY_STORE_BASE64: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
-        run: |
-          echo $SIGNING_KEY_STORE_BASE64 | base64 --decode > app/release-key.jks
-
-      - name: Build with Gradle
-        env:
-          SIGNING_KEY_STORE: release-key.jks
           SIGNING_KEY_STORE_PASSWORD: ${{ secrets.SIGNING_KEY_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: |
+          # 1. Decode Keystore
+          echo $SIGNING_KEY_STORE_BASE64 | base64 --decode > release-key.jks
+          
+          # 2. Find APK and Sign it
+          # apksigner requires zipalign usually, but Gradle's assembleRelease already zipaligned it.
+          # We'll sign the generated APK directly.
+          APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          # Note: The output filename logic in build.gradle might include spaces, we handle that with quotes.
+          SIGNED_APK_PATH="${APK_PATH%.apk}-signed.apk"
+          
+          # 3. Perform signing
+          $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner sign \
+            --ks release-key.jks \
+            --ks-pass pass:$SIGNING_KEY_STORE_PASSWORD \
+            --ks-key-alias $SIGNING_KEY_ALIAS \
+            --key-pass pass:$SIGNING_KEY_PASSWORD \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --v4-signing-enabled true \
+            --out "$SIGNED_APK_PATH" \
+            "$APK_PATH"
+          
+          # 4. Verify signing
+          $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner verify --verbose "$SIGNED_APK_PATH"
+          
+          # 5. Clean up jks
+          rm release-key.jks
 
-      - name: Upload APK
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
           name: Media Provider Manager Signed APK
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/*-signed.apk
