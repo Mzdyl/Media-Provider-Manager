@@ -45,24 +45,24 @@ class Templates(json: String?) {
         }
     }
 
-    fun filterTemplate(cls: Class<*>, packageName: String): Templates {
-        matchingTemplates = _values.filter { template ->
+    fun filterTemplate(cls: Class<*>, packageName: String): List<Template> {
+        return _values.filter { template ->
             when (cls) {
                 QueryHooker::class.java -> template.hookOperation.contains("query")
                 InsertHooker::class.java -> template.hookOperation.contains("insert")
                 else -> throw IllegalArgumentException()
             } && template.applyToApp?.contains(packageName) == true
         }
-        return this
     }
 
-    fun applyTemplates(dataList: List<String>, mimeTypeList: List<String>): List<Boolean> =
+    fun applyTemplates(
+        templates: List<Template>, dataList: List<String>, mimeTypeList: List<String>
+    ): List<Boolean> =
         dataList.zip(mimeTypeList).map { (data, mimeType) ->
-            (if (::matchingTemplates.isInitialized) matchingTemplates else _values)
-                .any { template ->
-                    MimeUtils.resolveMediaType(mimeType) !in
-                            (template.permittedMediaTypes ?: emptyList()) ||
-                            template.filterPath?.any { FileUtils.contains(it, data) } == true
-                }
+            templates.any { template ->
+                MimeUtils.resolveMediaType(mimeType) !in
+                        (template.permittedMediaTypes ?: emptyList()) ||
+                        template.filterPath?.any { FileUtils.contains(it, data) } == true
+            }
         }
 }
