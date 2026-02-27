@@ -35,7 +35,6 @@ class Templates(json: String?) {
     private val _values = mutableListOf<Template>()
     val values: List<Template>
         get() = _values
-    private lateinit var matchingTemplates: List<Template>
 
     init {
         if (!json.isNullOrEmpty()) {
@@ -45,7 +44,7 @@ class Templates(json: String?) {
         }
     }
 
-    fun filterTemplate(cls: Class<*>, packageName: String): List<Template> {
+    fun getFilteredTemplates(cls: Class<*>, packageName: String): List<Template> {
         return _values.filter { template ->
             when (cls) {
                 QueryHooker::class.java -> template.hookOperation.contains("query")

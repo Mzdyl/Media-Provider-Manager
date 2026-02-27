@@ -202,7 +202,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         }
 
         /** INTERCEPT */
-        val templates = service.ruleSp.templates.filterTemplate(javaClass, param.callingPackage)
+        val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
         val shouldIntercept = service.ruleSp.templates
             .applyTemplates(templates, data, mimeType)
         if (shouldIntercept.isEmpty()) {
