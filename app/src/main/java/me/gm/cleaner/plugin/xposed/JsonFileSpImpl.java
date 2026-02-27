@@ -86,11 +86,26 @@ public class JsonFileSpImpl extends SharedPreferencesWrapper {
         }
 
         ensureFile();
-        var bb = ByteBuffer.wrap(what.getBytes());
-        try (var it = new FileOutputStream(file)) {
-            it.getChannel().write(bb);
+        File tempFile = new File(file.getPath() + ".bak");
+        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+            fos.write(what.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            fos.getFD().sync(); // 强制同步到硬件磁盘
         } catch (IOException e) {
-            XposedBridge.log(e);
+            XposedBridge.log("Failed to write rules atomically: " + e);
+            // 备份方案：如果原子写入失败，尝试直接写入（虽然不安全，但在极端文件权限下可能是唯一出路）
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(what.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (IOException ex) {
+                XposedBridge.log("Critical failure writing rules: " + ex);
+            }
+            return;
+        }
+
+        // 原子替换
+        if (!tempFile.renameTo(file)) {
+            if (!file.delete() || !tempFile.renameTo(file)) {
+                XposedBridge.log("Failed to rename temporary file to " + file);
+            }
         }
     }
 }
