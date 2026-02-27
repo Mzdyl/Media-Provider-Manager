@@ -129,7 +129,7 @@ class UsageRecordViewModel(
         }.onEach {
             val pi = binderViewModel.getPackageInfo(it.packageName) ?: return@onEach
             it.packageInfo = pi
-            it.label = packageManager.getApplicationLabel(pi.applicationInfo).toString()
+            it.label = packageManager.getApplicationLabel(pi.applicationInfo!!).toString()
         }.takeWhile {
             it.packageInfo != null
         }

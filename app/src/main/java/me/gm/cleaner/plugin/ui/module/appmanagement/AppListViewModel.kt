@@ -60,7 +60,8 @@ class AppListViewModel(
                     var sequence = apps.list.asSequence()
                     if (isHideSystemApp) {
                         sequence = sequence.filter {
-                            it.packageInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0
+                            val flags = it.packageInfo.applicationInfo?.flags ?: 0
+                            flags and ApplicationInfo.FLAG_SYSTEM == 0
                         }
                     }
                     if (isSearching) {

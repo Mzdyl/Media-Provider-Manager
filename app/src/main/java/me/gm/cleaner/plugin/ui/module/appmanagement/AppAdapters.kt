@@ -62,7 +62,7 @@ class AppHeaderAdapter(private val fragment: AppFragment) :
             .into(binding.icon)
         binding.labelVersion.text = "${args.label} ${args.packageInfo.versionName}"
         binding.packageName.text = args.packageInfo.packageName
-        binding.sdk.text = "SDK ${args.packageInfo.applicationInfo.targetSdkVersion}"
+        binding.sdk.text = "SDK ${args.packageInfo.applicationInfo?.targetSdkVersion}"
         binding.sdk.setOnClickListener {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", args.packageInfo.packageName, null)

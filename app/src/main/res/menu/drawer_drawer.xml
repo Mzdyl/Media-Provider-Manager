@@ -39,38 +39,7 @@
         </menu>
     </item>
 
-    <item android:title="@string/media_store">
-        <menu>
-            <group android:checkableBehavior="single">
-                <item
-                    android:id="@+id/audio_fragment"
-                    android:icon="@drawable/ic_outline_audiotrack_24"
-                    android:title="@string/audio" />
-                <item
-                    android:id="@+id/downloads_fragment"
-                    android:icon="@drawable/ic_outline_save_alt_24"
-                    android:title="@string/downloads" />
-                <item
-                    android:id="@+id/files_fragment"
-                    android:icon="@drawable/ic_outline_insert_drive_file_24"
-                    android:title="@string/files" />
-                <item
-                    android:id="@+id/images_fragment"
-                    android:icon="@drawable/ic_outline_image_24"
-                    android:title="@string/images" />
-                <item
-                    android:id="@+id/video_fragment"
-                    android:icon="@drawable/ic_outline_videocam_24"
-                    android:title="@string/video" />
-            </group>
-        </menu>
-    </item>
-
     <group android:checkableBehavior="single">
-        <item
-            android:id="@+id/playground_fragment"
-            android:icon="@drawable/ic_outline_science_24"
-            android:title="@string/playground" />
         <item
             android:id="@+id/about_fragment"
             android:icon="@drawable/ic_outline_info_24"

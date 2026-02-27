@@ -5,11 +5,11 @@ apply plugin: 'com.google.devtools.ksp'
 apply plugin: 'dagger.hilt.android.plugin'
 
 def gitCommitCount = Integer.parseInt('git rev-list --count HEAD'.execute([], project.rootDir).text.trim())
-def sdk = 34
+def sdk = 36
 
 android {
     compileSdk sdk
-    buildToolsVersion = '34.0.0'
+    buildToolsVersion = '36.0.0'
 
     defaultConfig {
         applicationId 'me.gm.cleaner.plugin'
@@ -58,9 +58,6 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion"
-    def media3Version = '1.3.1'
-    implementation "androidx.media3:media3-exoplayer:$media3Version"
-    implementation "androidx.media3:media3-ui:$media3Version"
     implementation "androidx.navigation:navigation-fragment-ktx:$rootProject.navigationVersion"
     implementation "androidx.navigation:navigation-ui-ktx:$rootProject.navigationVersion"
     implementation 'androidx.preference:preference-ktx:1.2.1'

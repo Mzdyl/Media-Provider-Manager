@@ -21,7 +21,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.viewModels
-import androidx.core.os.bundleOf
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
@@ -40,9 +39,7 @@ import me.gm.cleaner.plugin.dao.RootPreferences
 import me.gm.cleaner.plugin.databinding.DrawerActivityBinding
 import me.gm.cleaner.plugin.ktx.getObjectField
 import me.gm.cleaner.plugin.ktx.overScrollIfContentScrollsPersistent
-import me.gm.cleaner.plugin.ui.mediastore.ToolbarActionModeIndicator
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
-import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import rikka.recyclerview.fixEdgeEffect
 
 abstract class DrawerActivity : BaseActivity() {
@@ -67,40 +64,11 @@ abstract class DrawerActivity : BaseActivity() {
                         RootPreferences.startDestination in topLevelDestinationIds)
         if (shouldAlterStartDestination) {
             when (action) {
-                "me.gm.cleaner.plugin.intent.action.AUDIO" ->
-                    RootPreferences.startDestination = R.id.audio_fragment
-
-                "me.gm.cleaner.plugin.intent.action.FILES" ->
-                    RootPreferences.startDestination = R.id.files_fragment
-
-                "me.gm.cleaner.plugin.intent.action.IMAGES" ->
-                    RootPreferences.startDestination = R.id.images_fragment
-
-                "me.gm.cleaner.plugin.intent.action.VIDEO" ->
-                    RootPreferences.startDestination = R.id.video_fragment
+                else -> RootPreferences.startDestination
             }
             val navGraph = navController.navInflater.inflate(R.navigation.nav_graph).apply {
-                val startDestId = if (action == Intent.ACTION_VIEW) {
-                    when {
-                        MimeUtils.isAudioMimeType(intent.type) -> R.id.audio_fragment
-                        MimeUtils.isImageMimeType(intent.type) -> R.id.image_pager_fragment
-                        MimeUtils.isVideoMimeType(intent.type) -> R.id.video_player_fragment
-                        else -> throw IllegalArgumentException(intent.type)
-                    }
-                } else {
-                    RootPreferences.startDestination
-                }
-                setStartDestination(startDestId)
+                setStartDestination(RootPreferences.startDestination)
             }
-            val args = if (action == Intent.ACTION_VIEW) {
-                bundleOf(
-                    "uri" to intent.data,
-                    "uris" to arrayOf(intent.data),
-                )
-            } else {
-                null
-            }
-            navController.setGraph(navGraph, args)
         }
         navController.addOnDestinationChangedListener { _, destination, _ ->
             if (destination.id in topLevelDestinationIds) {
@@ -148,10 +116,10 @@ abstract class DrawerActivity : BaseActivity() {
             navController.currentDestination?.id in topLevelDestinationIds &&
                     supportFragmentManager.findFragmentById(R.id.nav_host)
                         ?.childFragmentManager?.fragments?.first()?.let {
-                            it !is ToolbarActionModeIndicator || !it.isInActionMode()
+                            true
                         } == true -> super.onSupportNavigateUp()
 
-            else -> super.onBackPressed()
+            else -> super.onSupportNavigateUp()
         }
     }
 
@@ -163,12 +131,6 @@ abstract class DrawerActivity : BaseActivity() {
             R.id.applist_fragment,
             R.id.usage_record_fragment,
             R.id.settings_fragment,
-            R.id.audio_fragment,
-            R.id.downloads_fragment,
-            R.id.files_fragment,
-            R.id.images_fragment,
-            R.id.video_fragment,
-            R.id.playground_fragment,
             R.id.about_fragment,
         )
     }
