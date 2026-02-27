@@ -50,10 +50,17 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val queryArgs = param.args[2] as? Bundle ?: Bundle.EMPTY
         val signal = param.args[3] as? CancellationSignal
 
-        if (param.callingPackage in
+        // Determine if this is a system maintenance query that we should skip for performance.
+        // We skip if it's a system package AND it doesn't even ask for the '_data' (path) column.
+        // UI apps (like Gallery) will almost always ask for the path.
+        val isSystemMaintenance = param.isSystemCallingPackage && 
+                projection != null && 
+                projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
+
+        if (isSystemMaintenance || param.callingPackage in
             setOf("com.android.providers.media", "com.android.providers.media.module")
         ) {
-            // Scanning files and internal queries.
+            // Scanning files and internal maintenance queries.
             return
         }
         dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
@@ -172,7 +179,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 else -> throw UnsupportedOperationException()
             } as Cursor
         } catch (e: XposedHelpers.InvocationTargetError) {
-            dlog("InvocationTargetError in qb.query: ${e.targetException}")
+            dlog("InvocationTargetError in qb.query: ${e.cause}")
             return
         } catch (t: Throwable) {
             dlog("Error in qb.query: $t")

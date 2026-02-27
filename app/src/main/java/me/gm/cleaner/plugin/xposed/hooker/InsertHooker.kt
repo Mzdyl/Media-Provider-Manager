@@ -38,7 +38,7 @@ import java.util.*
 class InsertHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
-        if (param.isFuseThread) {
+        if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
         /** ARGUMENTS */

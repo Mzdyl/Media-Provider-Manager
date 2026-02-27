@@ -124,6 +124,16 @@ interface MediaProviderHooker {
             false
         }
 
+    val XC_MethodHook.MethodHookParam.isSystemCallingPackage: Boolean
+        get() {
+            val pkg = callingPackage
+            return pkg == "com.android.providers.media" || 
+                   pkg == "com.android.providers.media.module" ||
+                   pkg == "com.google.android.providers.media" ||
+                   pkg == "com.google.android.providers.media.module" ||
+                   pkg == "com.samsung.android.providers.media"
+        }
+
     val XC_MethodHook.MethodHookParam.callingPackage: String
         get() {
             ensureMediaProvider()

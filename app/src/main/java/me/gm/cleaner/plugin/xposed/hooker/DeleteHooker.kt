@@ -36,7 +36,7 @@ import java.io.File
 class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
-        if (param.isFuseThread) {
+        if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
         /** ARGUMENTS */
