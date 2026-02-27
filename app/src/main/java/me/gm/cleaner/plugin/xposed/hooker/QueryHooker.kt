@@ -35,8 +35,10 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.FilteredCursor
+import java.lang.reflect.Method
 import java.util.function.Consumer
 import java.util.function.Function
+import java.util.Optional
 
 class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
@@ -57,9 +59,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 projection != null && 
                 projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
 
-        if (isSystemMaintenance || param.callingPackage in
-            setOf("com.android.providers.media", "com.android.providers.media.module")
-        ) {
+        if (isSystemMaintenance) {
             // Scanning files and internal maintenance queries.
             return
         }
@@ -271,4 +271,5 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
 
         private const val MAX_SIZE = 1000
     }
+
 }
