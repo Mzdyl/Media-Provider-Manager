@@ -33,6 +33,20 @@ allprojects {
     }
 }
 
+subprojects {
+    afterEvaluate { project ->
+        if (project.name == 'photoview') {
+            project.android {
+                buildTypes {
+                    release {
+                        minifyEnabled false
+                    }
+                }
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.layout.buildDirectory
 }
