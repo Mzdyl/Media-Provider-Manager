@@ -95,7 +95,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
-            table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
+            table in setOf(MediaTables.IMAGES_THUMBNAILS, MediaTables.VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
         val helper = try {
@@ -164,7 +164,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                                 null
                             }
                         }
-                    val groupBy = if (table == AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
+                    val groupBy = if (table == MediaTables.AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
                     else null
                     val having = null
                     val limit = uri.getQueryParameter("limit")

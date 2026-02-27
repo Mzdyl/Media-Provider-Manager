@@ -26,7 +26,7 @@ import java.lang.reflect.Method
 import java.util.Optional
 import java.util.concurrent.atomic.AtomicReference
 
-interface MediaProviderHooker : MediaTables {
+interface MediaProviderHooker {
     companion object {
         private val lastLog = AtomicReference<String?>(null)
         private val lastLogTime = AtomicReference(0L)
@@ -149,7 +149,7 @@ interface MediaProviderHooker : MediaTables {
     val XC_MethodHook.MethodHookParam.isSystemCallingPackage: Boolean
         get() {
             val pkg = callingPackage
-            return pkg in SYSTEM_CALLING_PACKAGES
+            return pkg in MediaTables.SYSTEM_CALLING_PACKAGES
         }
 
     val XC_MethodHook.MethodHookParam.callingPackage: String

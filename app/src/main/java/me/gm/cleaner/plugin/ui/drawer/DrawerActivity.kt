@@ -96,7 +96,7 @@ abstract class DrawerActivity : BaseActivity() {
         navView.getHeaderView(0).findViewById<TextView>(R.id.status).setText(
             when {
                 !viewModel.pingBinder() -> R.string.not_active
-                viewModel.moduleVersion != BuildConfig.VERSION_CODE -> R.string.restart_system
+                viewModel.moduleVersion != 0 && viewModel.moduleVersion != BuildConfig.VERSION_CODE -> R.string.restart_system
                 else -> R.string.active
             }
         )
