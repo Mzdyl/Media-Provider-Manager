@@ -95,7 +95,6 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinxCoroutinesVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion"
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
-    implementation project(':photoview')
     implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.25'
 
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.13'
