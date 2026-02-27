@@ -52,24 +52,19 @@ interface MediaProviderHooker {
         if (isQueryBuilderResolved) return
         val clazz = thisObject.javaClass
         
-        val signatures = arrayOf(
-            // Android 16: 6 args
-            arrayOf(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Uri::class.java, Bundle::class.java, java.util.function.Consumer::class.java, Optional::class.java),
-            // Android 11-15: 5 args
-            arrayOf(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Uri::class.java, Bundle::class.java, java.util.function.Consumer::class.java),
-            // Android 10: Q
-            arrayOf(Int::class.javaPrimitiveType, Uri::class.java, Int::class.javaPrimitiveType, Bundle::class.java)
-        )
-
-        for (sig in signatures) {
-            try {
-                queryBuilderMethod = XposedHelpers.findMethodExact(clazz, "getQueryBuilder", *sig)
-                queryBuilderMethod?.isAccessible = true
-                dlog("Resolved getQueryBuilder with ${sig.size} parameters")
-                break
-            } catch (t: Throwable) {
-                continue
-            }
+        // Try to find the method by name and parameter count since types might vary slightly across versions
+        val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
+        
+        // Find the best match based on parameter count
+        queryBuilderMethod = methods.find { it.parameterTypes.size == 6 }
+            ?: methods.find { it.parameterTypes.size == 5 }
+            ?: methods.find { it.parameterTypes.size == 4 }
+        
+        queryBuilderMethod?.isAccessible = true
+        if (queryBuilderMethod != null) {
+            dlog("Resolved getQueryBuilder with ${queryBuilderMethod?.parameterTypes?.size} parameters")
+        } else {
+            dlog("Failed to resolve getQueryBuilder method")
         }
         isQueryBuilderResolved = true
     }
@@ -89,7 +84,8 @@ interface MediaProviderHooker {
                 else -> null
             }
         } catch (t: Throwable) {
-            dlog("Error invoking getQueryBuilder: $t")
+            val cause = if (t is java.lang.reflect.InvocationTargetException) t.targetException else t
+            dlog("Error invoking getQueryBuilder: $cause")
             null
         }
     }
@@ -108,7 +104,8 @@ interface MediaProviderHooker {
                 else -> null
             }
         } catch (t: Throwable) {
-            dlog("Error invoking getQueryBuilder (Delete): $t")
+            val cause = if (t is java.lang.reflect.InvocationTargetException) t.targetException else t
+            dlog("Error invoking getQueryBuilder (Delete): $cause")
             null
         }
     }
