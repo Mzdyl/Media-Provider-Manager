@@ -47,6 +47,8 @@
             app:key="@string/template_management_key"
             app:title="@string/template_management_title" />
 
+    </PreferenceCategory>
+
     <PreferenceCategory
         app:iconSpaceReserved="false"
         app:title="@string/backup_restore_header">

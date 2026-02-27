@@ -55,7 +55,7 @@
     <string name="share">分享</string>
     <string name="screen_rotation">旋轉螢幕</string>
     <string name="info">訊息</string>
-    <string name="info_item">%s：%s</string>
+    <string name="info_item">%1$s：%2$s</string>
     <string name="resolution">解析度</string>
     <string name="menu_sort_by_path_title">路徑</string>
     <string name="menu_sort_by_date_taken_title">建立日期</string>

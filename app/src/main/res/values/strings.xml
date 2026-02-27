@@ -62,7 +62,7 @@
     <string name="share">Share</string>
     <string name="screen_rotation">Screen rotation</string>
     <string name="info">Info</string>
-    <string name="info_item">%s: %s</string>
+    <string name="info_item">%1$s: %2$s</string>
     <string name="resolution">Resolution</string>
     <string name="sort_media_key" translatable="false">sort_media</string>
     <string name="menu_sort_by_path_title">Path</string>
