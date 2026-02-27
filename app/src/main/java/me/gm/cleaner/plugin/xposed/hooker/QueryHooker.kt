@@ -191,14 +191,14 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             return
         }
         dlog("Query returned ${c.count} items")
-        val dataColumn = c.getColumnIndexOrThrow(FileColumns.DATA)
+        val dataColumn = c.getColumnIndex(FileColumns.DATA)
         val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         while (c.moveToNext()) {
-            data += c.getString(dataColumn)
-            mimeType += c.getString(mimeTypeColumn)
+            data += if (dataColumn >= 0) c.getString(dataColumn) else ""
+            mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
         }
 
         /** INTERCEPT */

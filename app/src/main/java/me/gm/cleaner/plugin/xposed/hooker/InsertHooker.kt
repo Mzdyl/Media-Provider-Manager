@@ -79,7 +79,7 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[6] else param.args[4]
         } catch (t: Throwable) {
             dlog("Error getting mediaType arg: $t")
-            0
+            return
         } as Int
 
         /** PARSE */

@@ -32,7 +32,9 @@ interface MediaProviderHooker {
         private var lastLogTime: Long = 0
         
         // 缓存方法对象以提高性能
+        @Volatile
         private var queryBuilderMethod: Method? = null
+        @Volatile
         private var isQueryBuilderResolved = false
     }
 
@@ -50,23 +52,31 @@ interface MediaProviderHooker {
 
     private fun resolveQueryBuilderMethod(thisObject: Any) {
         if (isQueryBuilderResolved) return
-        val clazz = thisObject.javaClass
-        
-        // Try to find the method by name and parameter count since types might vary slightly across versions
-        val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
-        
-        // Find the best match based on parameter count
-        queryBuilderMethod = methods.find { it.parameterTypes.size == 6 }
-            ?: methods.find { it.parameterTypes.size == 5 }
-            ?: methods.find { it.parameterTypes.size == 4 }
-        
-        queryBuilderMethod?.isAccessible = true
-        if (queryBuilderMethod != null) {
-            dlog("Resolved getQueryBuilder with ${queryBuilderMethod?.parameterTypes?.size} parameters")
-        } else {
-            dlog("Failed to resolve getQueryBuilder method")
+        synchronized(MediaProviderHooker::class.java) {
+            if (isQueryBuilderResolved) return
+            val clazz = thisObject.javaClass
+            val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
+            
+            // Priority 1: Android 16 (6 args, includes Optional)
+            queryBuilderMethod = methods.find { m ->
+                val params = m.parameterTypes
+                params.size == 6 && params[2] == Uri::class.java && params[3] == Bundle::class.java
+            } ?: 
+            // Priority 2: Android 11-15 (5 args)
+            methods.find { m ->
+                val params = m.parameterTypes
+                params.size == 5 && params[2] == Uri::class.java && params[3] == Bundle::class.java
+            } ?:
+            // Priority 3: Android 10 (4 args)
+            methods.find { m ->
+                val params = m.parameterTypes
+                params.size == 4 && (params[1] == Uri::class.java || params[2] == Uri::class.java)
+            }
+            
+            queryBuilderMethod?.isAccessible = true
+            dlog(if (queryBuilderMethod != null) "Resolved getQueryBuilder: $queryBuilderMethod" else "Failed to resolve getQueryBuilder")
+            isQueryBuilderResolved = true
         }
-        isQueryBuilderResolved = true
     }
 
     fun callGetQueryBuilder(
@@ -77,10 +87,15 @@ interface MediaProviderHooker {
         val m = queryBuilderMethod ?: return null
         
         return try {
-            when (m.parameterTypes.size) {
-                6 -> m.invoke(thisObject, type, table, uri, query, honoredArgs, Optional.empty<Any>())
+            val params = m.parameterTypes
+            when (params.size) {
+                6 -> {
+                    val lastParam = if (params[5].name == "java.util.Optional") Optional.empty<Any>() else null
+                    m.invoke(thisObject, type, table, uri, query, honoredArgs, lastParam)
+                }
                 5 -> m.invoke(thisObject, type, table, uri, query, honoredArgs)
-                4 -> m.invoke(thisObject, type, uri, table, query)
+                4 -> if (params[1] == Uri::class.java) m.invoke(thisObject, type, uri, table, query)
+                     else m.invoke(thisObject, type, table, uri, query)
                 else -> null
             }
         } catch (t: Throwable) {
@@ -97,10 +112,15 @@ interface MediaProviderHooker {
         val m = queryBuilderMethod ?: return null
         
         return try {
-            when (m.parameterTypes.size) {
-                6 -> m.invoke(thisObject, type, match, uri, extras, null, Optional.empty<Any>())
+            val params = m.parameterTypes
+            when (params.size) {
+                6 -> {
+                    val lastParam = if (params[5].name == "java.util.Optional") Optional.empty<Any>() else null
+                    m.invoke(thisObject, type, match, uri, extras, null, lastParam)
+                }
                 5 -> m.invoke(thisObject, type, match, uri, extras, null)
-                4 -> m.invoke(thisObject, type, uri, match, null)
+                4 -> if (params[1] == Uri::class.java) m.invoke(thisObject, type, uri, match, null)
+                     else m.invoke(thisObject, type, match, uri, null)
                 else -> null
             }
         } catch (t: Throwable) {
