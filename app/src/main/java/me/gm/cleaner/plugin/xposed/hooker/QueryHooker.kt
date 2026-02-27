@@ -52,93 +52,95 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val queryArgs = param.args[2] as? Bundle ?: Bundle.EMPTY
         val signal = param.args[3] as? CancellationSignal
 
-        if (param.callingPackage in
-            setOf("com.android.providers.media", "com.android.providers.media.module")
-        ) {
-            // Scanning files and internal queries.
+        // Determine if this is a system maintenance query that we should skip for performance.
+        // We skip if it's a system package AND it doesn't even ask for the '_data' (path) column.
+        // UI apps (like Gallery) will almost always ask for the path.
+        val isSystemMaintenance = param.isSystemCallingPackage && 
+                projection != null && 
+                projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
+
+        if (isSystemMaintenance) {
+            // Scanning files and internal maintenance queries.
             return
         }
+        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
 
         /** PARSE */
         val query = Bundle(queryArgs)
         query.remove(INCLUDED_DEFAULT_DIRECTORIES)
-        val honoredArgs = ArraySet<String>()
+        val honoredArgsSet = ArraySet<String>()
+        val honoredArgs = java.util.function.Consumer<String> { t ->
+            honoredArgsSet.add(t)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val databaseUtilsClass = XposedHelpers.findClass(
-                "com.android.providers.media.util.DatabaseUtils", service.classLoader
-            )
-            XposedHelpers.callStaticMethod(
-                databaseUtilsClass, "resolveQueryArgs", query, object : Consumer<String> {
-                    override fun accept(t: String) {
-                        honoredArgs.add(t)
+            try {
+                val databaseUtilsClass = XposedHelpers.findClass(
+                    "com.android.providers.media.util.DatabaseUtils", service.classLoader
+                )
+                XposedHelpers.callStaticMethod(
+                    databaseUtilsClass, "resolveQueryArgs", query, honoredArgs,
+                    java.util.function.Function<String, String> { t ->
+                        XposedHelpers.callMethod(param.thisObject, "ensureCustomCollator", t) as String
                     }
-                }, object : Function<String, String> {
-                    override fun apply(t: String) = XposedHelpers.callMethod(
-                        param.thisObject, "ensureCustomCollator", t
-                    ) as String
-                }
-            )
+                )
+            } catch (t: Throwable) {
+                dlog("Error in resolveQueryArgs: $t")
+            }
         }
         if (isClientQuery(param.callingPackage, uri)) {
             param.result = handleClientQuery(projection, query)
             return
         }
         val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
             table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
-        val helper = XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+        val helper = try {
+            XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+        } catch (t: Throwable) {
+            dlog("Error calling getDatabaseForUri: $t")
+            null
+        }
+        val qb = callGetQueryBuilder(param.thisObject, TYPE_QUERY, table, uri, query, honoredArgs)
 
-        // Android 16+ (API 36) fuzzy matching for getQueryBuilder
-        val qb = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                try {
-                    // Try standard Android 11+ signature first
-                    XposedHelpers.callMethod(
-                        param.thisObject, "getQueryBuilder", TYPE_QUERY, table, uri, query,
-                        object : Consumer<String> {
-                            override fun accept(t: String) {
-                                honoredArgs.add(t)
-                            }
-                        }
-                    )
-                } catch (e: Exception) {
-                    // Fuzzy matching for Android 16+ and Samsung devices
-                    invokeGetQueryBuilderFuzzy(param.thisObject, TYPE_QUERY, table, uri, query, honoredArgs)
-                }
-            }
-
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                param.thisObject, "getQueryBuilder", TYPE_QUERY, uri, table, query
-            )
-
-            else -> throw UnsupportedOperationException()
+        if (qb == null) {
+            dlog("QueryBuilder is null, skipping hook logic")
+            return
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val targetSdkVersion = XposedHelpers.callMethod(
-                param.thisObject, "getCallingPackageTargetSdkVersion"
-            ) as Int
-            val databaseUtilsClass = XposedHelpers.findClass(
-                "com.android.providers.media.util.DatabaseUtils", service.classLoader
-            )
-            if (targetSdkVersion < Build.VERSION_CODES.R) {
-                // Some apps are abusing "ORDER BY" clauses to inject "LIMIT"
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(databaseUtilsClass, "recoverAbusiveSortOrder", query)
-
-                // Some apps are abusing the Uri query parameters to inject LIMIT
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(
-                    databaseUtilsClass, "recoverAbusiveLimit", uri, query
+            try {
+                val targetSdkVersion = XposedHelpers.callMethod(
+                    param.thisObject, "getCallingPackageTargetSdkVersion"
+                ) as Int
+                val databaseUtilsClass = XposedHelpers.findClass(
+                    "com.android.providers.media.util.DatabaseUtils", service.classLoader
                 )
-            }
-            if (targetSdkVersion < Build.VERSION_CODES.Q) {
-                // Some apps are abusing the "WHERE" clause by injecting "GROUP BY"
-                // clauses; gracefully lift them out.
-                XposedHelpers.callStaticMethod(databaseUtilsClass, "recoverAbusiveSelection", query)
+                if (targetSdkVersion < Build.VERSION_CODES.R) {
+                    // Some apps are abusing "ORDER BY" clauses to inject "LIMIT"
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveSortOrder", query
+                    )
+
+                    // Some apps are abusing the Uri query parameters to inject LIMIT
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveLimit", uri, query
+                    )
+                }
+                if (targetSdkVersion < Build.VERSION_CODES.Q) {
+                    // Some apps are abusing the "WHERE" clause by injecting "GROUP BY"
+                    // clauses; gracefully lift them out.
+                    XposedHelpers.callStaticMethod(
+                        databaseUtilsClass, "recoverAbusiveSelection", query
+                    )
+                }
+            } catch (t: Throwable) {
+                dlog("Error in targetSdkVersion processing: $t")
             }
         }
 
@@ -177,7 +179,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 else -> throw UnsupportedOperationException()
             } as Cursor
         } catch (e: XposedHelpers.InvocationTargetError) {
-            // IllegalArgumentException that thrown from the media provider. Nothing I can do.
+            dlog("InvocationTargetError in qb.query: ${e.cause}")
+            return
+        } catch (t: Throwable) {
+            dlog("Error in qb.query: $t")
             return
         }
         if (c.count == 0) {
@@ -185,14 +190,15 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             c.close()
             return
         }
-        val dataColumn = c.getColumnIndexOrThrow(FileColumns.DATA)
+        dlog("Query returned ${c.count} items")
+        val dataColumn = c.getColumnIndex(FileColumns.DATA)
         val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         while (c.moveToNext()) {
-            data += c.getString(dataColumn)
-            mimeType += c.getString(mimeTypeColumn)
+            data += if (dataColumn >= 0) c.getString(dataColumn) else ""
+            mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
         }
 
         /** INTERCEPT */
@@ -260,104 +266,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
     }
 
     companion object {
-        private const val TAG = "MPM_QueryHooker"
         private const val INCLUDED_DEFAULT_DIRECTORIES = "android:included-default-directories"
         private const val TYPE_QUERY = 0
+
         private const val MAX_SIZE = 1000
-    
-        @Volatile
-        private var cachedGetQueryBuilder: Method? = null
-    
-        /**
-        * Fuzzy matching for getQueryBuilder to support Android 16+ and Samsung devices.
-        * This dynamically finds and invokes the correct getQueryBuilder method signature.
-        */
-        private fun invokeGetQueryBuilderFuzzy(
-            mediaProvider: Any,
-            type: Int,
-            table: Int,
-            uri: Uri,
-            query: Bundle,
-            honoredArgs: ArraySet<String>
-        ): Any {
-            val clazz = mediaProvider.javaClass
-            val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
-    
-            for (method in methods) {
-                try {
-                    val args = buildArgumentsForMethod(
-                        method,
-                        TYPE_QUERY,
-                        0,
-                        Uri.EMPTY,
-                        Bundle(),
-                        ArraySet()
-                    )
-                    if (args != null) {
-                        method.isAccessible = true
-                        return method
-                    }
-                } catch (_: Throwable) {
-                }
-            }
-            throw NoSuchMethodException("No compatible getQueryBuilder found")
-        }
-    
-        /**
-        * Build arguments safely
-        */
-        private fun buildArgumentsForMethod(
-            method: Method,
-            type: Int,
-            table: Int,
-            uri: Uri,
-            query: Bundle,
-            honoredArgs: ArraySet<String>
-        ): Array<Any?>? {
-            val paramTypes = method.parameterTypes
-            val args = ArrayList<Any?>(paramTypes.size)
-            var intIndex = 0
-    
-            for (paramType in paramTypes) {
-                when {
-                    // int / Integer
-                    paramType == Int::class.javaPrimitiveType ||
-                            paramType == Int::class.java -> {
-                        args.add(
-                            when (intIndex++) {
-                                0 -> type
-                                1 -> table
-                                else -> 0
-                            }
-                        )
-                    }
-                    // Uri
-                    paramType == Uri::class.java -> {
-                        args.add(uri)
-                    }
-                    // Bundle
-                    paramType == Bundle::class.java -> {
-                        args.add(query)
-                    }
-                    // Consumer
-                    Consumer::class.java.isAssignableFrom(paramType) -> {
-                        args.add(
-                            Consumer<String> { honoredArgs.add(it) }
-                        )
-                    }
-                    // Optional family (future safe)
-                    paramType.name.startsWith("java.util.Optional") -> {
-                        // Android 16+ uses Optional parameters
-                        args.add(Optional.empty<Any?>())
-                    }
-                    else -> {
-                        // Unknown parameter type, cannot match this signature
-                        return null
-                    }
-                }
-            }
-            return args.toTypedArray()
-        }
     }
 
 }

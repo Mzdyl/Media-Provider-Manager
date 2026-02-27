@@ -36,31 +36,48 @@ import java.io.File
 class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
-        if (param.isFuseThread) {
+        if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
         /** ARGUMENTS */
         val uri = param.args[0] as Uri
         val extras = param.args[1] as? Bundle ?: Bundle.EMPTY
-        val userWhere: String? = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getString(
-                QUERY_ARG_SQL_SELECTION
-            )
+        dlog("deleteInternal called: uri=$uri, callingPackage=${param.callingPackage}")
+        val userWhere: String? = try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getString(
+                    QUERY_ARG_SQL_SELECTION
+                )
 
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[1] as? String
-            else -> throw UnsupportedOperationException()
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[1] as? String
+                else -> throw UnsupportedOperationException()
+            }
+        } catch (t: Throwable) {
+            dlog("Error getting userWhere: $t")
+            null
         }
-        val userWhereArgs: Array<String>? = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getStringArray(
-                QUERY_ARG_SQL_SELECTION_ARGS
-            )
+        val userWhereArgs: Array<String>? = try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> extras?.getStringArray(
+                    QUERY_ARG_SQL_SELECTION_ARGS
+                )
 
-            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[2] as? Array<String>
-            else -> throw UnsupportedOperationException()
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[2] as? Array<String>
+                else -> throw UnsupportedOperationException()
+            }
+        } catch (t: Throwable) {
+            dlog("Error getting userWhereArgs: $t")
+            null
         }
 
         /** PARSE */
-        val match = param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        val match = try {
+            param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        } catch (t: Throwable) {
+            dlog("Error matching URI: $t")
+            return
+        }
+        dlog("Matched table: $match")
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         when (match) {
@@ -83,19 +100,15 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                     }
                 }
 
-                val qb = when {
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                        param.thisObject, "getQueryBuilder", TYPE_DELETE, match, uri,
-                        extras, null
-                    )
-
-                    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                        param.thisObject, "getQueryBuilder", TYPE_DELETE, uri, match, null
-                    )
-
-                    else -> throw UnsupportedOperationException()
+                val qb = callGetQueryBuilderDelete(param.thisObject, TYPE_DELETE, match, uri, extras)
+                if (qb == null) return
+                val helper = try {
+                    XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+                } catch (t: Throwable) {
+                    dlog("Error calling getDatabaseForUri in DeleteHooker: $t")
+                    null
                 }
-                val helper = XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+                if (helper == null) return
                 val projection = arrayOf(
                     FileColumns.MEDIA_TYPE,
                     FileColumns.DATA,
