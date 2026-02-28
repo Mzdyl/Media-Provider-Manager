@@ -117,4 +117,5 @@
     <string name="backup_fail_empty">備份失敗：沒有有效的規則</string>
     <string name="restore_ok">規則還原成功</string>
     <string name="restore_fail_invalid">還原失敗：剪貼簿中沒有有效的 JSON 規則</string>
+    <string name="about_load_error">載入 README 失敗：%s</string>
 </resources>

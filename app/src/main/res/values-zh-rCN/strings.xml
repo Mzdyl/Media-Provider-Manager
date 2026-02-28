@@ -117,4 +117,5 @@
     <string name="backup_fail_empty">备份失败：没有有效的规则</string>
     <string name="restore_ok">规则恢复成功</string>
     <string name="restore_fail_invalid">恢复失败：剪贴板中没有有效的 JSON 规则</string>
+    <string name="about_load_error">加载 README 失败：%s</string>
 </resources>
