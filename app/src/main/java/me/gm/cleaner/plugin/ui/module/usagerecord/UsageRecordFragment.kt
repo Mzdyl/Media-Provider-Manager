@@ -116,6 +116,13 @@ class UsageRecordFragment : ModuleFragment() {
         return binding.root
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        if (binderViewModel.pingBinder()) {
+            binderViewModel.unregisterMediaChangeObserver(mediaChangeObserver)
+        }
+    }
+
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         super.onCreateOptionsMenu(menu, inflater)
         if (!binderViewModel.pingBinder()) {

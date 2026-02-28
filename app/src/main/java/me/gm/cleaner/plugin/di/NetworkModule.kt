@@ -23,7 +23,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import me.gm.cleaner.plugin.data.github.ReadmeService
-import me.gm.cleaner.plugin.data.unsplash.UnsplashService
 import javax.inject.Singleton
 
 @InstallIn(SingletonComponent::class)
@@ -33,8 +32,4 @@ class NetworkModule {
     @Singleton
     @Provides
     fun provideReadmeService(@ApplicationContext context: Context) = ReadmeService.create(context)
-
-    @Singleton
-    @Provides
-    fun provideUnsplashService() = UnsplashService.create()
 }

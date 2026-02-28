@@ -140,45 +140,45 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         var defaultPrimary = Environment.DIRECTORY_DOWNLOADS
         var defaultSecondary: String? = null
         when (match) {
-            AUDIO_MEDIA, AUDIO_MEDIA_ID -> {
+            MediaTables.AUDIO_MEDIA, MediaTables.AUDIO_MEDIA_ID -> {
                 defaultMimeType = "audio/mpeg"
                 defaultPrimary = Environment.DIRECTORY_MUSIC
             }
 
-            VIDEO_MEDIA, VIDEO_MEDIA_ID -> {
+            MediaTables.VIDEO_MEDIA, MediaTables.VIDEO_MEDIA_ID -> {
                 defaultMimeType = "video/mp4"
                 defaultPrimary = Environment.DIRECTORY_MOVIES
             }
 
-            IMAGES_MEDIA, IMAGES_MEDIA_ID -> {
+            MediaTables.IMAGES_MEDIA, MediaTables.IMAGES_MEDIA_ID -> {
                 defaultMimeType = "image/jpeg"
                 defaultPrimary = Environment.DIRECTORY_PICTURES
             }
 
-            AUDIO_ALBUMART, AUDIO_ALBUMART_ID -> {
+            MediaTables.AUDIO_ALBUMART, MediaTables.AUDIO_ALBUMART_ID -> {
                 defaultMimeType = "image/jpeg"
                 defaultPrimary = Environment.DIRECTORY_MUSIC
                 defaultSecondary = DIRECTORY_THUMBNAILS
             }
 
-            VIDEO_THUMBNAILS, VIDEO_THUMBNAILS_ID -> {
+            MediaTables.VIDEO_THUMBNAILS, MediaTables.VIDEO_THUMBNAILS_ID -> {
                 defaultMimeType = "image/jpeg"
                 defaultPrimary = Environment.DIRECTORY_MOVIES
                 defaultSecondary = DIRECTORY_THUMBNAILS
             }
 
-            IMAGES_THUMBNAILS, IMAGES_THUMBNAILS_ID -> {
+            MediaTables.IMAGES_THUMBNAILS, MediaTables.IMAGES_THUMBNAILS_ID -> {
                 defaultMimeType = "image/jpeg"
                 defaultPrimary = Environment.DIRECTORY_PICTURES
                 defaultSecondary = DIRECTORY_THUMBNAILS
             }
 
-            AUDIO_PLAYLISTS, AUDIO_PLAYLISTS_ID -> {
+            MediaTables.AUDIO_PLAYLISTS, MediaTables.AUDIO_PLAYLISTS_ID -> {
                 defaultMimeType = "audio/mpegurl"
                 defaultPrimary = Environment.DIRECTORY_MUSIC
             }
 
-            DOWNLOADS, DOWNLOADS_ID -> {
+            MediaTables.DOWNLOADS, MediaTables.DOWNLOADS_ID -> {
                 defaultPrimary = Environment.DIRECTORY_DOWNLOADS
             }
         }

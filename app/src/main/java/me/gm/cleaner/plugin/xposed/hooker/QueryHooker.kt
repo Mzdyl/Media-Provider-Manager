@@ -52,18 +52,16 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val queryArgs = param.args[2] as? Bundle ?: Bundle.EMPTY
         val signal = param.args[3] as? CancellationSignal
 
-        // Determine if this is a system maintenance query that we should skip for performance.
-        // We skip if it's a system package AND it doesn't even ask for the '_data' (path) column.
-        // UI apps (like Gallery) will almost always ask for the path.
-        val isSystemMaintenance = param.isSystemCallingPackage && 
-                projection != null && 
+        val callingPkg = param.callingPackage
+        val isSystemMaintenance = callingPkg in MediaTables.SYSTEM_CALLING_PACKAGES &&
+                projection != null &&
                 projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
 
         if (isSystemMaintenance) {
-            // Scanning files and internal maintenance queries.
+            dlog("Skipping system maintenance query from $callingPkg")
             return
         }
-        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
+        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=$callingPkg")
 
         /** PARSE */
         val query = Bundle(queryArgs)
@@ -95,7 +93,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
-            table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
+            table in setOf(MediaTables.IMAGES_THUMBNAILS, MediaTables.VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
         val helper = try {
@@ -164,7 +162,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                                 null
                             }
                         }
-                    val groupBy = if (table == AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
+                    val groupBy = if (table == MediaTables.AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
                     else null
                     val having = null
                     val limit = uri.getQueryParameter("limit")

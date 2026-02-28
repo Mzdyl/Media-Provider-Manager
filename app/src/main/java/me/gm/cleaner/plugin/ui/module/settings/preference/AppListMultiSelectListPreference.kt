@@ -55,7 +55,7 @@ class AppListMultiSelectListPreference @JvmOverloads constructor(
                 val pm = context.packageManager
                 packageNameToLabel = withContext(Dispatchers.Default) {
                     applistSupplier.get()
-                        .map { it.packageName to pm.getApplicationLabel(it.applicationInfo) }
+                        .map { it.packageName to pm.getApplicationLabel(it.applicationInfo!!) }
                         .sortedWith(collatorComparator { it.second.toString() })
                 }
                 liftSelected()

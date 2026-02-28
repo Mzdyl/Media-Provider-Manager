@@ -51,7 +51,7 @@ class AppListLoader(private val defaultDispatcher: CoroutineDispatcher = Dispatc
             l?.onProgress(100 * count.incrementAndGet() / size)
             AppListModel(
                 pi,
-                pm.getApplicationLabel(pi.applicationInfo).toString(),
+                pm.getApplicationLabel(pi.applicationInfo!!).toString(),
                 packageNameToRuleCount.getOrDefault(pi.packageName, 0),
             )
         }

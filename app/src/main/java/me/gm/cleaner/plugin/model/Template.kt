@@ -59,8 +59,9 @@ class Templates(json: String?) {
     ): List<Boolean> =
         dataList.zip(mimeTypeList).map { (data, mimeType) ->
             templates.any { template ->
-                MimeUtils.resolveMediaType(mimeType) !in
-                        (template.permittedMediaTypes ?: emptyList()) ||
+                val permittedTypes = template.permittedMediaTypes
+                (permittedTypes != null && permittedTypes.isNotEmpty() &&
+                        MimeUtils.resolveMediaType(mimeType) !in permittedTypes) ||
                         template.filterPath?.any { FileUtils.contains(it, data) } == true
             }
         }

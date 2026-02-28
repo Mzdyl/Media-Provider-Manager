@@ -28,6 +28,7 @@ import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.html.HtmlPlugin
 import io.noties.markwon.image.ImagesPlugin
 import kotlinx.coroutines.launch
+import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.app.BaseFragment
 import me.gm.cleaner.plugin.databinding.AboutFragmentBinding
 import me.gm.cleaner.plugin.ktx.fitsSystemWindowInsets
@@ -49,7 +50,7 @@ class AboutFragment : BaseFragment() {
             val rawReadme = viewModel.getRawReadmeAsync().await()
             binding.progress.hide()
             val md = rawReadme.getOrElse {
-                binding.content.text = it.stackTraceToString()
+                binding.content.text = getString(R.string.about_load_error, it.message ?: it::class.java.simpleName)
                 return@launch
             }
             val markwon = Markwon.builder(requireContext())

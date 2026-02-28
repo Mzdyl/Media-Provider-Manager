@@ -30,8 +30,10 @@ abstract class ModuleFragment : BaseFragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        check(!binderViewModel.pingBinder())
-        val binding = ModuleFragmentBinding.inflate(layoutInflater)
-        return binding.root
+        return if (!binderViewModel.pingBinder()) {
+            super.onCreateView(inflater, container, savedInstanceState)!!
+        } else {
+            ModuleFragmentBinding.inflate(layoutInflater).root
+        }
     }
 }
