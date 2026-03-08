@@ -59,8 +59,10 @@ class BinderViewModel @Inject constructor(private val binder: IBinder?) : ViewMo
         val cacheValue = remoteSpCache[who]
         if (cacheValue != what) {
             service?.writeSp(who, what)
-            remoteSpCache.put(who, what)
-            notifyRemoteSpChanged()
+            if (service != null) {
+                remoteSpCache.put(who, what)
+                notifyRemoteSpChanged()
+            }
         }
     }
 

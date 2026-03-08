@@ -31,7 +31,8 @@ abstract class ModuleFragment : BaseFragment() {
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         return if (!binderViewModel.pingBinder()) {
-            super.onCreateView(inflater, container, savedInstanceState)!!
+            super.onCreateView(inflater, container, savedInstanceState)
+                ?: ModuleFragmentBinding.inflate(layoutInflater).root
         } else {
             ModuleFragmentBinding.inflate(layoutInflater).root
         }

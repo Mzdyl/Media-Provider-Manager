@@ -24,14 +24,12 @@ import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.BuildConfig
 import java.lang.reflect.Method
 import java.util.Optional
-import java.util.concurrent.atomic.AtomicReference
 
 interface MediaProviderHooker {
     companion object {
         private val lastLog = AtomicReference<String?>(null)
         private val lastLogTime = AtomicReference(0L)
 
-        private val queryBuilderMethod = AtomicReference<Method?>(null)
         private val isQueryBuilderResolved = AtomicReference(false)
 
         @Volatile
@@ -75,7 +73,6 @@ interface MediaProviderHooker {
 
             method?.isAccessible = true
             queryBuilderMethodInstance = method
-            queryBuilderMethod.set(method)
             dlog(if (method != null) "Resolved getQueryBuilder: $method" else "Failed to resolve getQueryBuilder")
             isQueryBuilderResolved.set(true)
         }

@@ -63,9 +63,6 @@ abstract class DrawerActivity : BaseActivity() {
                 (action != Intent.ACTION_MAIN ||
                         RootPreferences.startDestination in topLevelDestinationIds)
         if (shouldAlterStartDestination) {
-            when (action) {
-                else -> RootPreferences.startDestination
-            }
             val navGraph = navController.navInflater.inflate(R.navigation.nav_graph).apply {
                 setStartDestination(RootPreferences.startDestination)
             }
