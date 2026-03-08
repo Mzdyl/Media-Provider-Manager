@@ -17,8 +17,8 @@
 package me.gm.cleaner.plugin.dao
 
 import androidx.room.TypeConverter
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import me.gm.cleaner.plugin.model.Template
 import java.lang.Character.MAX_RADIX
 import java.math.BigInteger
 
@@ -26,13 +26,13 @@ object ListConverter {
     @TypeConverter
     fun fromString(value: String?): List<String>? {
         val listType = object : TypeToken<List<String>?>() {}.type
-        val list = Gson().fromJson<List<String?>?>(value, listType)
+        val list = Template.GSON.fromJson<List<String?>?>(value, listType)
         return if (list.isEmpty() || list.any { it == null }) null
         else list as List<String>?
     }
 
     @TypeConverter
-    fun listToString(list: List<String>?) = Gson().toJson(list)
+    fun listToString(list: List<String>?) = Template.GSON.toJson(list)
 
     @TypeConverter
     fun booleanListFromString(value: String): List<Boolean> {

@@ -68,7 +68,7 @@ class CreateTemplateFragment : AbsSettingsFragment() {
                 if (!::tempSp.isInitialized) {
                     tempSp = try {
                         JsonSharedPreferencesImpl(
-                            Gson().toJson(
+                            Template.GSON.toJson(
                                 Templates(binderViewModel.readSp(R.xml.template_preferences)).values.first {
                                     it.templateName == if (savedInstanceState == null) args.templateName
                                     else savedInstanceState.getString(KEY_TEMPLATE_NAME)
@@ -203,8 +203,8 @@ class CreateTemplateFragment : AbsSettingsFragment() {
         val hookOperationValues =
             findPreference<MultiSelectListPreference>(getString(R.string.hook_operation_key))?.values
         if (!templateName.isNullOrEmpty() && hookOperationValues?.isNotEmpty() == true) {
-            val template = Gson().fromJson(tempSp.delegate.toString(), Template::class.java)
-            val json = Gson().toJson(
+            val template = Template.GSON.fromJson(tempSp.delegate.toString(), Template::class.java)
+            val json = Template.GSON.toJson(
                 Templates(binderViewModel.readSp(R.xml.template_preferences)).values.filterNot {
                     it.templateName == templateName || it.templateName == args.templateName
                 } + template

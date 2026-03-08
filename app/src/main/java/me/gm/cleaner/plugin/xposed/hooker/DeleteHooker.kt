@@ -130,16 +130,18 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
 
                     else -> throw UnsupportedOperationException()
                 } as Cursor
-                if (c.count == 0) {
-                    // deleting nothing.
+                try {
+                    if (c.count == 0) {
+                        // deleting nothing.
+                        return
+                    }
+                    while (c.moveToNext()) {
+                        data += c.getString(1)
+                        mimeType += c.getString(4)
+                    }
+                } finally {
                     c.close()
-                    return
                 }
-                while (c.moveToNext()) {
-                    data += c.getString(1)
-                    mimeType += c.getString(4)
-                }
-                c.close()
             }
 
             MediaTables.FILES -> if (userWhereArgs != null) {
