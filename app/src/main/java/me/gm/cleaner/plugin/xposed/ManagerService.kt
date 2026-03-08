@@ -141,20 +141,30 @@ abstract class ManagerService : IManagerService.Stub() {
         observers.unregister(observer)
     }
 
+    private var lastDispatchTime = 0L
+
+    /**
+     * Dispatch media change with debouncing to avoid excessive notifications.
+     * Multiple calls within 500ms will be coalesced into a single notification.
+     */
     @Synchronized
     fun dispatchMediaChange() {
-        var i = observers.beginBroadcast()
-        while (i > 0) {
-            i--
-            val observer = observers.getBroadcastItem(i)
-            if (observer != null) {
-                try {
-                    observer.onChange()
-                } catch (ignored: RemoteException) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastDispatchTime >= 500) {
+            lastDispatchTime = now
+            var i = observers.beginBroadcast()
+            while (i > 0) {
+                i--
+                val observer = observers.getBroadcastItem(i)
+                if (observer != null) {
+                    try {
+                        observer.onChange()
+                    } catch (ignored: RemoteException) {
+                    }
                 }
             }
+            observers.finishBroadcast()
         }
-        observers.finishBroadcast()
     }
 
     companion object {

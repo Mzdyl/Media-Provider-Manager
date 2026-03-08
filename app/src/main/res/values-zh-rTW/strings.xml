@@ -22,6 +22,7 @@
     <string name="not_active">未啟動</string>
     <string name="restart_system">重啟系統以升級模組</string>
     <string name="active">已啟動</string>
+    <string name="loading">載入中…</string>
     <string name="enabled_rule_count">已啟用 %d 條規則</string>
     <string name="query_times">查詢 %d 次</string>
     <string name="insert_times">插入 %d 次</string>

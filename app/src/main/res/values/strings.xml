@@ -23,6 +23,7 @@
     <string name="not_active">NOT ACTIVE</string>
     <string name="restart_system">Restart the system to upgrade the module</string>
     <string name="active">ACTIVATED</string>
+    <string name="loading">Loading…</string>
     <string name="enabled_rule_count">%d rule(s) enabled</string>
     <string name="query_times">Queried %d times</string>
     <string name="insert_times">Inserted %d times</string>

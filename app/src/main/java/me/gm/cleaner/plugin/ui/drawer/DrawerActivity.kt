@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -32,6 +33,9 @@ import com.google.android.material.internal.NavigationMenuPresenter
 import com.google.android.material.internal.NavigationMenuView
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.transition.platform.Hold
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.app.BaseActivity
@@ -90,13 +94,19 @@ abstract class DrawerActivity : BaseActivity() {
             navView.setCheckedItem(RootPreferences.startDestination)
         }
 
-        navView.getHeaderView(0).findViewById<TextView>(R.id.status).setText(
-            when {
-                !viewModel.pingBinder() -> R.string.not_active
-                viewModel.moduleVersion != 0 && viewModel.moduleVersion != BuildConfig.VERSION_CODE -> R.string.restart_system
-                else -> R.string.active
+        // Check binder status asynchronously to avoid blocking main thread
+        val statusView = navView.getHeaderView(0).findViewById<TextView>(R.id.status)
+        statusView.setText(R.string.loading)
+        lifecycleScope.launch {
+            val statusText = withContext(Dispatchers.IO) {
+                when {
+                    !viewModel.pingBinder() -> R.string.not_active
+                    viewModel.moduleVersion != 0 && viewModel.moduleVersion != BuildConfig.VERSION_CODE -> R.string.restart_system
+                    else -> R.string.active
+                }
             }
-        )
+            statusView.setText(statusText)
+        }
     }
 
     @SuppressLint("RestrictedApi")

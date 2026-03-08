@@ -17,6 +17,7 @@
 package me.gm.cleaner.plugin.ui.module.usagerecord
 
 import android.app.Application
+import android.content.pm.PackageInfo
 import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -109,10 +110,13 @@ class UsageRecordViewModel(
         return@withContext emptyList()
     }
 
+    // Cache for package info to avoid repeated Binder calls (thread-safe)
+    private val packageInfoCache = java.util.concurrent.ConcurrentHashMap<String, PackageInfo?>()
+    
     private suspend fun load(
         start: Long, end: Long,
         isHideQuery: Boolean, isHideInsert: Boolean, isHideDelete: Boolean
-    ): UsageRecordState {
+    ): UsageRecordState = withContext(Dispatchers.IO) {
         val packageManager = getApplication<Application>().packageManager
         val operations = mutableListOf<Int>()
         if (!isHideQuery) {
@@ -124,16 +128,21 @@ class UsageRecordViewModel(
         if (!isHideDelete) {
             operations += OP_DELETE
         }
-        val records = mutableListOf<MediaProviderRecord>().also {
-            it += queryRecord(start, end, operations)
-        }.onEach {
-            val pi = binderViewModel.getPackageInfo(it.packageName) ?: return@onEach
-            it.packageInfo = pi
-            it.label = packageManager.getApplicationLabel(pi.applicationInfo!!).toString()
-        }.takeWhile {
-            it.packageInfo != null
+        val records = queryRecord(start, end, operations).mapNotNull { record ->
+            // Use cache to avoid repeated lookups
+            val pi = packageInfoCache.getOrPut(record.packageName) {
+                runCatching {
+                    // Try local PackageManager first (faster than Binder)
+                    packageManager.getPackageInfo(record.packageName, 0)
+                }.getOrNull() ?: binderViewModel.getPackageInfo(record.packageName)
+            }
+            if (pi != null) {
+                record.packageInfo = pi
+                record.label = packageManager.getApplicationLabel(pi.applicationInfo!!).toString()
+                record
+            } else null
         }
-        return UsageRecordState.Done(records)
+        UsageRecordState.Done(records)
     }
 
     private val isHideQueryFlow: StateFlow<Boolean> = RootPreferences.isHideQueryFlowable.asFlow()

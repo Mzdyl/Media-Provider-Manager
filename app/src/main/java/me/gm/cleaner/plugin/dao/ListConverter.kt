@@ -23,10 +23,12 @@ import java.lang.Character.MAX_RADIX
 import java.math.BigInteger
 
 object ListConverter {
+    // Cache TypeToken to avoid repeated object creation
+    private val stringListType = object : TypeToken<List<String>?>() {}.type
+
     @TypeConverter
     fun fromString(value: String?): List<String>? {
-        val listType = object : TypeToken<List<String>?>() {}.type
-        val list = Template.GSON.fromJson<List<String?>?>(value, listType)
+        val list = Template.GSON.fromJson<List<String?>?>(value, stringListType) ?: return null
         return if (list.isEmpty() || list.any { it == null }) null
         else list as List<String>?
     }
@@ -40,15 +42,12 @@ object ListConverter {
         val size = value.substring(0, splitIndex).toInt()
         val values = BigInteger(value.substring(splitIndex + 1), MAX_RADIX)
 
-        val list = MutableList(size) { i ->
-            values.testBit(i)
-        }
-        return list
+        return MutableList(size) { i -> values.testBit(i) }
     }
 
     @TypeConverter
     fun booleanListToString(list: List<Boolean>): String {
-        var value = BigInteger("0", MAX_RADIX)
+        var value = BigInteger.ZERO
         list.forEachIndexed { index, b ->
             if (b) {
                 value = value.setBit(index)
