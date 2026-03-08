@@ -16,21 +16,40 @@
 
 package me.gm.cleaner.plugin.ui.module
 
+import android.content.Context
 import android.content.pm.PackageInfo
 import android.os.IBinder
 import android.os.Process
+import android.provider.MediaStore
 import android.util.SparseArray
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import javax.inject.Inject
 
 @HiltViewModel
-class BinderViewModel @Inject constructor(private val binder: IBinder?) : ViewModel() {
-    private val service: IManagerService? = binder?.let { IManagerService.Stub.asInterface(it) }
+class BinderViewModel @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ViewModel() {
+    // Lazy initialization to avoid blocking app startup
+    private val binder: IBinder? by lazy {
+        runCatching {
+            context.contentResolver.query(
+                MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
+            )?.use {
+                it.extras.getBinder("me.gm.cleaner.plugin.cursor.extra.BINDER")
+            }
+        }.getOrNull()
+    }
+    
+    private val service: IManagerService? by lazy {
+        binder?.let { IManagerService.Stub.asInterface(it) }
+    }
+    
     private val _remoteSpCacheLiveData = MutableLiveData(SparseArray<String>())
     val remoteSpCacheLiveData: LiveData<SparseArray<String>>
         get() = _remoteSpCacheLiveData
@@ -83,5 +102,6 @@ class BinderViewModel @Inject constructor(private val binder: IBinder?) : ViewMo
 
     companion object {
         const val AID_USER_OFFSET = 100000
+        const val BINDER_EXTRA_KEY = "me.gm.cleaner.plugin.cursor.extra.BINDER"
     }
 }
