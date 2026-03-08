@@ -21,6 +21,21 @@ android {
         multiDexEnabled false
         resourceConfigurations += ['en', 'zh-rCN', 'zh-rTW']
     }
+
+    signingConfigs {
+        release {
+            if (System.getenv("SIGNING_KEY_STORE")) {
+                storeFile file(System.getenv("SIGNING_KEY_STORE"))
+                storePassword System.getenv("SIGNING_KEY_STORE_PASSWORD")
+                keyAlias System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+                v1SigningEnabled true
+                v2SigningEnabled true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             outputFileName = "Media Provider Manager_${defaultConfig.versionName}-${variant.buildType.name}.apk"
@@ -31,6 +46,9 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (System.getenv("SIGNING_KEY_STORE")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
