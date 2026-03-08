@@ -110,8 +110,8 @@ class UsageRecordViewModel(
         return@withContext emptyList()
     }
 
-    // Cache for package info to avoid repeated Binder calls
-    private val packageInfoCache = mutableMapOf<String, PackageInfo?>()
+    // Cache for package info to avoid repeated Binder calls (thread-safe)
+    private val packageInfoCache = java.util.concurrent.ConcurrentHashMap<String, PackageInfo?>()
     
     private suspend fun load(
         start: Long, end: Long,

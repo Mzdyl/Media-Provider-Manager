@@ -142,36 +142,29 @@ abstract class ManagerService : IManagerService.Stub() {
     }
 
     private var lastDispatchTime = 0L
-    private val dispatchLock = Any()
 
     /**
      * Dispatch media change with debouncing to avoid excessive notifications.
      * Multiple calls within 500ms will be coalesced into a single notification.
      */
+    @Synchronized
     fun dispatchMediaChange() {
         val now = SystemClock.uptimeMillis()
-        synchronized(dispatchLock) {
-            if (now - lastDispatchTime >= 500) {
-                lastDispatchTime = now
-                dispatchMediaChangeInternal()
-            }
-        }
-    }
-
-    @Synchronized
-    private fun dispatchMediaChangeInternal() {
-        var i = observers.beginBroadcast()
-        while (i > 0) {
-            i--
-            val observer = observers.getBroadcastItem(i)
-            if (observer != null) {
-                try {
-                    observer.onChange()
-                } catch (ignored: RemoteException) {
+        if (now - lastDispatchTime >= 500) {
+            lastDispatchTime = now
+            var i = observers.beginBroadcast()
+            while (i > 0) {
+                i--
+                val observer = observers.getBroadcastItem(i)
+                if (observer != null) {
+                    try {
+                        observer.onChange()
+                    } catch (ignored: RemoteException) {
+                    }
                 }
             }
+            observers.finishBroadcast()
         }
-        observers.finishBroadcast()
     }
 
     companion object {

@@ -41,7 +41,7 @@ class BinderViewModel @Inject constructor(
             context.contentResolver.query(
                 MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
             )?.use {
-                it.extras.getBinder("me.gm.cleaner.plugin.cursor.extra.BINDER")
+                it.extras.getBinder(BINDER_EXTRA_KEY)
             }
         }.getOrNull()
     }
