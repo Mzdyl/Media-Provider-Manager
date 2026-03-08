@@ -57,7 +57,7 @@ abstract class ManagerService : IManagerService.Stub() {
 
     protected fun onCreate(context: Context) {
         this.context = context
-        appUid = Process.myUid()
+        appUid = context.packageManager.getPackageUid(BuildConfig.APPLICATION_ID, 0)
         database = Room
             .databaseBuilder(
                 context,
