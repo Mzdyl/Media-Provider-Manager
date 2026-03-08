@@ -81,7 +81,7 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
         val data = mutableListOf<String>()
         val mimeType = mutableListOf<String>()
         when (match) {
-            AUDIO_MEDIA_ID, VIDEO_MEDIA_ID, IMAGES_MEDIA_ID -> {
+            MediaTables.AUDIO_MEDIA_ID, MediaTables.VIDEO_MEDIA_ID, MediaTables.IMAGES_MEDIA_ID -> {
                 try {
                     when {
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
@@ -130,19 +130,21 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
 
                     else -> throw UnsupportedOperationException()
                 } as Cursor
-                if (c.count == 0) {
-                    // deleting nothing.
+                try {
+                    if (c.count == 0) {
+                        // deleting nothing.
+                        return
+                    }
+                    while (c.moveToNext()) {
+                        data += c.getString(1)
+                        mimeType += c.getString(4)
+                    }
+                } finally {
                     c.close()
-                    return
                 }
-                while (c.moveToNext()) {
-                    data += c.getString(1)
-                    mimeType += c.getString(4)
-                }
-                c.close()
             }
 
-            FILES -> if (userWhereArgs != null) {
+            MediaTables.FILES -> if (userWhereArgs != null) {
                 data += userWhereArgs
                 data.mapTo(mimeType) { MimeUtils.resolveMimeType(File(it)) }
             }

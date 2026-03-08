@@ -52,18 +52,16 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val queryArgs = param.args[2] as? Bundle ?: Bundle.EMPTY
         val signal = param.args[3] as? CancellationSignal
 
-        // Determine if this is a system maintenance query that we should skip for performance.
-        // We skip if it's a system package AND it doesn't even ask for the '_data' (path) column.
-        // UI apps (like Gallery) will almost always ask for the path.
-        val isSystemMaintenance = param.isSystemCallingPackage && 
-                projection != null && 
+        val callingPkg = param.callingPackage
+        val isSystemMaintenance = callingPkg in MediaTables.SYSTEM_CALLING_PACKAGES &&
+                projection != null &&
                 projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
 
         if (isSystemMaintenance) {
-            // Scanning files and internal maintenance queries.
+            dlog("Skipping system maintenance query from $callingPkg")
             return
         }
-        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=${param.callingPackage}")
+        dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=$callingPkg")
 
         /** PARSE */
         val query = Bundle(queryArgs)
@@ -95,7 +93,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
-            table in setOf(IMAGES_THUMBNAILS, VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
+            table in setOf(MediaTables.IMAGES_THUMBNAILS, MediaTables.VIDEO_THUMBNAILS) -> projection + FileColumns.DATA
             else -> projection + arrayOf(FileColumns.DATA, FileColumns.MIME_TYPE)
         }
         val helper = try {
@@ -164,7 +162,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                                 null
                             }
                         }
-                    val groupBy = if (table == AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
+                    val groupBy = if (table == MediaTables.AUDIO_ARTISTS_ID_ALBUMS) "audio.album_id"
                     else null
                     val having = null
                     val limit = uri.getQueryParameter("limit")
@@ -185,61 +183,78 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             dlog("Error in qb.query: $t")
             return
         }
-        if (c.count == 0) {
-            // querying nothing.
-            c.close()
-            return
-        }
-        dlog("Query returned ${c.count} items")
-        val dataColumn = c.getColumnIndex(FileColumns.DATA)
-        val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
-        val data = mutableListOf<String>()
-        val mimeType = mutableListOf<String>()
-        while (c.moveToNext()) {
-            data += if (dataColumn >= 0) c.getString(dataColumn) else ""
-            mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
-        }
+        // Track if cursor was handed off to avoid double-close
+        var cursorHandled = false
+        try {
+            if (c.count == 0) {
+                // querying nothing.
+                return
+            }
+            dlog("Query returned ${c.count} items")
+            val dataColumn = c.getColumnIndex(FileColumns.DATA)
+            val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
-        /** INTERCEPT */
-        val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-        val shouldIntercept = service.ruleSp.templates
-            .applyTemplates(templates, data, mimeType)
-        if (shouldIntercept.isEmpty()) {
-            c.close()
-        } else {
-            c.moveToFirst()
-            val filter = shouldIntercept
-                .mapIndexedNotNull { index, b ->
-                    if (!b) index else null
-                }
-                .toIntArray()
-            param.result = FilteredCursor.createUsingFilter(c, filter)
-        }
+            val data = mutableListOf<String>()
+            val mimeType = mutableListOf<String>()
+            while (c.moveToNext()) {
+                data += if (dataColumn >= 0) c.getString(dataColumn) else ""
+                mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
+            }
 
-        /** RECORD */
-        if (service.rootSp.getBoolean(
-                service.resources.getString(R.string.usage_record_key), true
-            )
-        ) {
-            service.dao.insert(
-                MediaProviderRecord(
-                    0,
-                    System.currentTimeMillis(),
-                    param.callingPackage,
-                    table,
-                    OP_QUERY,
-                    if (data.size < MAX_SIZE) data else data.subList(0, MAX_SIZE),
-                    mimeType,
-                    shouldIntercept
+            /** INTERCEPT */
+            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
+            val shouldIntercept = service.ruleSp.templates
+                .applyTemplates(templates, data, mimeType)
+            if (shouldIntercept.isEmpty()) {
+                // All items filtered out, cursor will be closed in finally
+            } else {
+                c.moveToFirst()
+                val filter = shouldIntercept
+                    .mapIndexedNotNull { index, b ->
+                        if (!b) index else null
+                    }
+                    .toIntArray()
+                param.result = FilteredCursor.createUsingFilter(c, filter)
+                cursorHandled = true // Cursor is now owned by FilteredCursor
+            }
+
+            /** RECORD */
+            if (service.rootSp.getBoolean(
+                    service.resources.getString(R.string.usage_record_key), true
                 )
-            )
-            service.dispatchMediaChange()
+            ) {
+                service.dao.insert(
+                    MediaProviderRecord(
+                        0,
+                        System.currentTimeMillis(),
+                        param.callingPackage,
+                        table,
+                        OP_QUERY,
+                        if (data.size < MAX_SIZE) data else data.subList(0, MAX_SIZE),
+                        mimeType,
+                        shouldIntercept
+                    )
+                )
+                service.dispatchMediaChange()
+            }
+        } finally {
+            if (!cursorHandled) {
+                c.close()
+            }
         }
     }
 
-    private fun isClientQuery(callingPackage: String, uri: Uri) =
-        callingPackage == BuildConfig.APPLICATION_ID && uri == MediaStore.Images.Media.INTERNAL_CONTENT_URI
+    private fun isClientQuery(callingPackage: String, uri: Uri): Boolean {
+        if (callingPackage != BuildConfig.APPLICATION_ID || uri != MediaStore.Images.Media.INTERNAL_CONTENT_URI) {
+            return false
+        }
+        // Additional UID verification for security
+        val callingUid = android.os.Binder.getCallingUid()
+        val expectedUid = service.context.packageManager
+            .getPackageUid(BuildConfig.APPLICATION_ID, 0)
+        return callingUid == expectedUid
+    }
 
     /**
      * This function handles queries from the client. It takes effect when calling package is

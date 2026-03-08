@@ -46,8 +46,18 @@ abstract class ManagerService : IManagerService.Stub() {
     val rootSp by lazy { JsonFileSpImpl(File(context.filesDir, "root")) }
     val ruleSp by lazy { TemplatesJsonFileSpImpl(File(context.filesDir, "rule")) }
 
+    private var appUid: Int = -1
+
+    private fun enforceCallerPermission() {
+        val callingUid = Binder.getCallingUid()
+        if (callingUid != appUid && callingUid != Process.SYSTEM_UID) {
+            throw SecurityException("Unauthorized caller: uid=$callingUid")
+        }
+    }
+
     protected fun onCreate(context: Context) {
         this.context = context
+        appUid = Process.myUid()
         database = Room
             .databaseBuilder(
                 context,
@@ -74,6 +84,7 @@ abstract class ManagerService : IManagerService.Stub() {
     override fun getModuleVersion() = BuildConfig.VERSION_CODE
 
     override fun getInstalledPackages(userId: Int, flags: Int): ParceledListSlice<PackageInfo> {
+        enforceCallerPermission()
         val parceledListSlice = XposedHelpers.callMethod(
             packageManagerService,
             "getInstalledPackages",
@@ -84,22 +95,28 @@ abstract class ManagerService : IManagerService.Stub() {
         return ParceledListSlice(list)
     }
 
-    override fun getPackageInfo(packageName: String, flags: Int, userId: Int) =
-        XposedHelpers.callMethod(
+    override fun getPackageInfo(packageName: String, flags: Int, userId: Int): PackageInfo? {
+        enforceCallerPermission()
+        return XposedHelpers.callMethod(
             packageManagerService,
             "getPackageInfo",
             packageName,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) flags.toLong() else flags,
             userId
         ) as? PackageInfo
+    }
 
-    override fun readSp(who: Int): String? = when (who) {
-        R.xml.root_preferences -> rootSp.read()
-        R.xml.template_preferences -> ruleSp.read()
-        else -> throw IllegalArgumentException()
+    override fun readSp(who: Int): String? {
+        enforceCallerPermission()
+        return when (who) {
+            R.xml.root_preferences -> rootSp.read()
+            R.xml.template_preferences -> ruleSp.read()
+            else -> throw IllegalArgumentException()
+        }
     }
 
     override fun writeSp(who: Int, what: String) {
+        enforceCallerPermission()
         when (who) {
             R.xml.root_preferences -> rootSp.write(what)
             R.xml.template_preferences -> ruleSp.write(what)
@@ -107,11 +124,14 @@ abstract class ManagerService : IManagerService.Stub() {
     }
 
     override fun clearAllTables() {
+        enforceCallerPermission()
         database.clearAllTables()
     }
 
-    override fun packageUsageTimes(operation: Int, packageNames: List<String>) =
-        dao.packageUsageTimes(operation, *packageNames.toTypedArray())
+    override fun packageUsageTimes(operation: Int, packageNames: List<String>): Int {
+        enforceCallerPermission()
+        return dao.packageUsageTimes(operation, *packageNames.toTypedArray())
+    }
 
     override fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
         observers.register(observer)

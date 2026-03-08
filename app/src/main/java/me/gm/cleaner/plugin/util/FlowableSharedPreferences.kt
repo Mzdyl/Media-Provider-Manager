@@ -66,4 +66,8 @@ class FlowableSharedPreferences<T>(
     init {
         preferences.registerOnSharedPreferenceChangeListener(listener)
     }
+
+    fun unregister() {
+        preferences.unregisterOnSharedPreferenceChangeListener(listener)
+    }
 }

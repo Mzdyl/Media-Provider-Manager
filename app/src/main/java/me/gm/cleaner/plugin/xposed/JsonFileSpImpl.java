@@ -64,7 +64,7 @@ public class JsonFileSpImpl extends SharedPreferencesWrapper {
         }
     }
 
-    public String read() {
+    public synchronized String read() {
         if (contentCache == null) {
             ensureFile();
             try (var it = new FileInputStream(file)) {
@@ -78,7 +78,7 @@ public class JsonFileSpImpl extends SharedPreferencesWrapper {
         return contentCache;
     }
 
-    public void write(String what) {
+    public synchronized void write(String what) {
         contentCache = what;
         try {
             delegate = new JsonSharedPreferencesImpl(new JSONObject(what));

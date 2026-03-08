@@ -30,7 +30,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BinderViewModel @Inject constructor(private val binder: IBinder?) : ViewModel() {
-    private var service: IManagerService? = IManagerService.Stub.asInterface(binder)
+    private val service: IManagerService? = binder?.let { IManagerService.Stub.asInterface(it) }
     private val _remoteSpCacheLiveData = MutableLiveData(SparseArray<String>())
     val remoteSpCacheLiveData: LiveData<SparseArray<String>>
         get() = _remoteSpCacheLiveData
@@ -41,41 +41,44 @@ class BinderViewModel @Inject constructor(private val binder: IBinder?) : ViewMo
         _remoteSpCacheLiveData.postValue(remoteSpCache)
     }
 
-    fun pingBinder() = binder?.pingBinder() == true
+    fun pingBinder(): Boolean = binder?.pingBinder() == true
 
     val moduleVersion: Int
-        get() = service!!.moduleVersion
+        get() = service?.moduleVersion ?: 0
 
     fun getInstalledPackages(flags: Int): List<PackageInfo> =
-        service!!.getInstalledPackages(Process.myUid() / AID_USER_OFFSET, flags).list
+        service?.getInstalledPackages(Process.myUid() / AID_USER_OFFSET, flags)?.list ?: emptyList()
 
     fun getPackageInfo(packageName: String): PackageInfo? =
-        service!!.getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
+        service?.getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
 
     fun readSp(who: Int): String? =
-        remoteSpCache[who, service!!.readSp(who).also { remoteSpCache.put(who, it) }]
+        service?.readSp(who)?.also { remoteSpCache.put(who, it) }
 
     fun writeSp(who: Int, what: String) {
-        if (remoteSpCache[who] != what) {
-            service!!.writeSp(who, what)
-            remoteSpCache.put(who, what)
-            notifyRemoteSpChanged()
+        val cacheValue = remoteSpCache[who]
+        if (cacheValue != what) {
+            service?.writeSp(who, what)
+            if (service != null) {
+                remoteSpCache.put(who, what)
+                notifyRemoteSpChanged()
+            }
         }
     }
 
     fun clearAllTables() {
-        service!!.clearAllTables()
+        service?.clearAllTables()
     }
 
     fun packageUsageTimes(operation: Int, packageNames: List<String>): Int =
-        service!!.packageUsageTimes(operation, packageNames)
+        service?.packageUsageTimes(operation, packageNames) ?: 0
 
     fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
-        service!!.registerMediaChangeObserver(observer)
+        service?.registerMediaChangeObserver(observer)
     }
 
     fun unregisterMediaChangeObserver(observer: IMediaChangeObserver) {
-        service!!.unregisterMediaChangeObserver(observer)
+        service?.unregisterMediaChangeObserver(observer)
     }
 
     companion object {

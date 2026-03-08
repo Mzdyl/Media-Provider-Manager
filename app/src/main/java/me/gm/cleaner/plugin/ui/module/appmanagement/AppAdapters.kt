@@ -62,7 +62,7 @@ class AppHeaderAdapter(private val fragment: AppFragment) :
             .into(binding.icon)
         binding.labelVersion.text = "${args.label} ${args.packageInfo.versionName}"
         binding.packageName.text = args.packageInfo.packageName
-        binding.sdk.text = "SDK ${args.packageInfo.applicationInfo.targetSdkVersion}"
+        binding.sdk.text = "SDK ${args.packageInfo.applicationInfo?.targetSdkVersion}"
         binding.sdk.setOnClickListener {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", args.packageInfo.packageName, null)
@@ -149,7 +149,7 @@ class TemplatesAdapter(private val fragment: AppFragment) :
                                         fragment.args.packageInfo.packageName
                             )
                             fragment.binderViewModel.writeSp(
-                                R.xml.template_preferences, Gson().toJson(modified)
+                                R.xml.template_preferences, Template.GSON.toJson(modified)
                             )
                             true
                         }
@@ -159,7 +159,7 @@ class TemplatesAdapter(private val fragment: AppFragment) :
                                 Templates(fragment.binderViewModel.readSp(R.xml.template_preferences))
                                     .values.filterNot { it.templateName == templateName }
                             fragment.binderViewModel.writeSp(
-                                R.xml.template_preferences, Gson().toJson(modified)
+                                R.xml.template_preferences, Template.GSON.toJson(modified)
                             )
                             true
                         }
@@ -258,7 +258,7 @@ class AddToExistingTemplateAdapter(private val fragment: AppFragment) :
                         (oldTemplate.applyToApp ?: emptyList())
             )
             fragment.binderViewModel.writeSp(
-                R.xml.template_preferences, Gson().toJson(modified)
+                R.xml.template_preferences, Template.GSON.toJson(modified)
             )
         }
 

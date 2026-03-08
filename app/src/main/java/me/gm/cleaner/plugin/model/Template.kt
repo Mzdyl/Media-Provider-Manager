@@ -29,7 +29,11 @@ data class Template(
     @field:SerializedName("apply_to_app") val applyToApp: List<String>?,
     @field:SerializedName("permitted_media_types") val permittedMediaTypes: List<Int>?,
     @field:SerializedName("filter_path") val filterPath: List<String>?,
-)
+) {
+    companion object {
+        val GSON: Gson = Gson()
+    }
+}
 
 class Templates(json: String?) {
     private val _values = mutableListOf<Template>()
@@ -39,7 +43,7 @@ class Templates(json: String?) {
     init {
         if (!json.isNullOrEmpty()) {
             _values.addAll(
-                Gson().fromJson(json, Array<Template>::class.java)
+                Template.GSON.fromJson(json, Array<Template>::class.java)
             )
         }
     }
@@ -59,8 +63,9 @@ class Templates(json: String?) {
     ): List<Boolean> =
         dataList.zip(mimeTypeList).map { (data, mimeType) ->
             templates.any { template ->
-                MimeUtils.resolveMediaType(mimeType) !in
-                        (template.permittedMediaTypes ?: emptyList()) ||
+                val permittedTypes = template.permittedMediaTypes
+                (permittedTypes != null && permittedTypes.isNotEmpty() &&
+                        MimeUtils.resolveMediaType(mimeType) !in permittedTypes) ||
                         template.filterPath?.any { FileUtils.contains(it, data) } == true
             }
         }

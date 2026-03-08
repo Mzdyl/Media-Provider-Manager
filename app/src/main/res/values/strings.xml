@@ -166,4 +166,5 @@
     <string name="backup_fail_empty">Backup failed: no valid rules</string>
     <string name="restore_ok">Rules restored successfully</string>
     <string name="restore_fail_invalid">Restore failed: no valid JSON rules in clipboard</string>
+    <string name="about_load_error">Failed to load README: %s</string>
 </resources>
