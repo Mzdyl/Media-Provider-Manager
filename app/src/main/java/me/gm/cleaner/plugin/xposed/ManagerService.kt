@@ -141,22 +141,19 @@ abstract class ManagerService : IManagerService.Stub() {
         observers.unregister(observer)
     }
 
-    private var pendingChange = false
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val dispatchRunnable = Runnable {
-        pendingChange = false
-        dispatchMediaChangeInternal()
-    }
+    private var lastDispatchTime = 0L
+    private val dispatchLock = Any()
 
     /**
      * Dispatch media change with debouncing to avoid excessive notifications.
      * Multiple calls within 500ms will be coalesced into a single notification.
      */
     fun dispatchMediaChange() {
-        synchronized(this) {
-            if (!pendingChange) {
-                pendingChange = true
-                handler.postDelayed(dispatchRunnable, 500)
+        val now = SystemClock.uptimeMillis()
+        synchronized(dispatchLock) {
+            if (now - lastDispatchTime >= 500) {
+                lastDispatchTime = now
+                dispatchMediaChangeInternal()
             }
         }
     }
