@@ -26,7 +26,14 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 
-@Entity
+@Entity(
+    indices = [
+        Index(value = ["time_millis"]),
+        Index(value = ["operation"]),
+        Index(value = ["package_name"]),
+        Index(value = ["time_millis", "operation"])
+    ]
+)
 data class MediaProviderRecord(
     @PrimaryKey(autoGenerate = true) val id: Int,
     @ColumnInfo(name = "time_millis") val timeMillis: Long,
@@ -101,7 +108,7 @@ annotation class MediaProviderOperation {
     }
 }
 
-@Database(entities = [MediaProviderRecord::class], version = 2, exportSchema = false)
+@Database(entities = [MediaProviderRecord::class], version = 3, exportSchema = false)
 @TypeConverters(ListConverter::class)
 abstract class MediaProviderRecordDatabase : RoomDatabase() {
     abstract fun mediaProviderRecordDao(): MediaProviderRecordDao
@@ -113,5 +120,14 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         _db.execSQL("DELETE FROM `MediaProviderInsertRecord`")
         _db.execSQL("DELETE FROM `MediaProviderDeleteRecord`")
         _db.execSQL("CREATE TABLE IF NOT EXISTS `MediaProviderRecord` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_millis` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `match` INTEGER NOT NULL, `operation` INTEGER NOT NULL, `data` TEXT NOT NULL, `mime_type` TEXT NOT NULL, `intercepted` TEXT NOT NULL)")
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(_db: SupportSQLiteDatabase) {
+        // Create indices for frequently queried columns
+        _db.execSQL("CREATE INDEX IF NOT EXISTS `index_MediaProviderRecord_time_millis` ON `MediaProviderRecord` (`time_millis`)")
+        _db.execSQL("CREATE INDEX IF NOT EXISTS `index_MediaProviderRecord_operation` ON `MediaProviderRecord` (`operation`)")
+        _db.execSQL("CREATE INDEX IF NOT EXISTS `index_MediaProviderRecord_package_name` ON `MediaProviderRecord` (`package_name`)")
     }
 }

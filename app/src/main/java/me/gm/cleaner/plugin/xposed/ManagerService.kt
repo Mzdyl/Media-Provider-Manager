@@ -27,6 +27,7 @@ import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MIGRATION_1_2
+import me.gm.cleaner.plugin.dao.MIGRATION_2_3
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDao
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase
 import me.gm.cleaner.plugin.model.ParceledListSlice
@@ -64,7 +65,7 @@ abstract class ManagerService : IManagerService.Stub() {
                 MediaProviderRecordDatabase::class.java,
                 MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME
             )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
         dao = database.mediaProviderRecordDao()
     }
@@ -141,8 +142,28 @@ abstract class ManagerService : IManagerService.Stub() {
         observers.unregister(observer)
     }
 
-    @Synchronized
+    private var pendingChange = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val dispatchRunnable = Runnable {
+        pendingChange = false
+        dispatchMediaChangeInternal()
+    }
+
+    /**
+     * Dispatch media change with debouncing to avoid excessive notifications.
+     * Multiple calls within 500ms will be coalesced into a single notification.
+     */
     fun dispatchMediaChange() {
+        synchronized(this) {
+            if (!pendingChange) {
+                pendingChange = true
+                handler.postDelayed(dispatchRunnable, 500)
+            }
+        }
+    }
+
+    @Synchronized
+    private fun dispatchMediaChangeInternal() {
         var i = observers.beginBroadcast()
         while (i > 0) {
             i--
