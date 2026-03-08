@@ -36,39 +36,14 @@ class BinderViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     // Lazy initialization to avoid blocking app startup
-    @Volatile
-    private var _binder: IBinder? = null
-    @Volatile
-    private var binderInitialized = false
-    
-    private val binder: IBinder?
-        get() {
-            if (!binderInitialized) {
-                synchronized(this) {
-                    if (!binderInitialized) {
-                        binderInitialized = true
-                        _binder = initBinder()
-                    }
-                }
-            }
-            return _binder
-        }
-    
-    private fun initBinder(): IBinder? {
-        return runCatching {
-            val cursor = context.contentResolver.query(
+    private val binder: IBinder? by lazy {
+        runCatching {
+            context.contentResolver.query(
                 MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
-            )
-            android.util.Log.d("BinderViewModel", "Cursor: $cursor, extras: ${cursor?.extras}")
-            cursor?.use {
-                val binder = it.extras?.getBinder(BINDER_EXTRA_KEY)
-                android.util.Log.d("BinderViewModel", "Binder from extras: $binder")
-                binder
+            )?.use {
+                it.extras.getBinder("me.gm.cleaner.plugin.cursor.extra.BINDER")
             }
-        }.getOrElse { 
-            android.util.Log.e("BinderViewModel", "Failed to get binder", it)
-            null 
-        }
+        }.getOrNull()
     }
     
     private val service: IManagerService? by lazy {

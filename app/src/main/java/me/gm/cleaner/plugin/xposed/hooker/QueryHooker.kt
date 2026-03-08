@@ -63,13 +63,6 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         }
         dlog("queryInternal: uri=$uri, projection=${projection?.contentToString()}, callingPackage=$callingPkg")
 
-        // Check for client query BEFORE parsing query args
-        if (isClientQuery(param.callingPackage, uri)) {
-            dlog("Client query detected, returning binder")
-            param.result = handleClientQuery(projection, queryArgs)
-            return
-        }
-
         /** PARSE */
         val query = Bundle(queryArgs)
         query.remove(INCLUDED_DEFAULT_DIRECTORIES)
@@ -91,6 +84,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             } catch (t: Throwable) {
                 dlog("Error in resolveQueryArgs: $t")
             }
+        }
+        if (isClientQuery(param.callingPackage, uri)) {
+            param.result = handleClientQuery(projection, query)
+            return
         }
         val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
         dlog("Matched table: $table")
@@ -272,9 +269,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
      * handle the query.
      */
     private fun handleClientQuery(table: Array<String>?, queryArgs: Bundle): Cursor {
-        dlog("handleClientQuery: table=$table, queryArgs=$queryArgs, isEmpty=${queryArgs.isEmpty}")
         if (table == null || queryArgs.isEmpty) {
-            dlog("Returning binder cursor")
             return MatrixCursor(arrayOf("binder")).apply {
                 extras = bundleOf("me.gm.cleaner.plugin.cursor.extra.BINDER" to service)
             }
