@@ -56,12 +56,6 @@ abstract class ManagerService : IManagerService.Stub() {
     private var writeHandler: Handler? = null
     private var handlerThread: HandlerThread? = null
     private val hasPendingWrite = AtomicBoolean(false)
-    
-    companion object {
-        private const val MSG_WRITE_RECORDS = 1
-        private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
-        private const val MAX_BATCH_SIZE = 50
-    }
 
     private fun enforceCallerPermission() {
         val callingUid = Binder.getCallingUid()
@@ -92,6 +86,17 @@ abstract class ManagerService : IManagerService.Stub() {
                 }
             }
         }
+    }
+    
+    /**
+     * Clean up resources when service is being destroyed.
+     * Should be called from Xposed hook when MediaProvider is shutting down.
+     */
+    protected fun onDestroy() {
+        writeHandler?.removeCallbacksAndMessages(null)
+        writeHandler = null
+        handlerThread?.quitSafely()
+        handlerThread = null
     }
     
     /**
@@ -248,5 +253,9 @@ abstract class ManagerService : IManagerService.Stub() {
 
     companion object {
         const val MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME = "media_provider.db"
+        
+        private const val MSG_WRITE_RECORDS = 1
+        private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
+        private const val MAX_BATCH_SIZE = 50
     }
 }

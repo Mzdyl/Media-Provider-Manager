@@ -195,40 +195,29 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             val dataColumn = c.getColumnIndex(FileColumns.DATA)
             val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
-            // Pre-fetch templates once for all items
-            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-            
-            // Combined: traverse cursor + match templates in single pass
+            // Single pass: traverse cursor and collect data
             val data = mutableListOf<String>()
             val mimeType = mutableListOf<String>()
-            val shouldIntercept = mutableListOf<Boolean>()
-            val filterIndices = mutableListOf<Int>()
-            
-            var index = 0
             while (c.moveToNext()) {
-                val dataValue = if (dataColumn >= 0) c.getString(dataColumn) else ""
-                val mimeValue = if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
-                
-                data += dataValue
-                mimeType += mimeValue
-                
-                // Match template for this item
-                val intercepted = service.ruleSp.templates
-                    .applyTemplates(templates, listOf(dataValue), listOf(mimeValue)).first()
-                shouldIntercept += intercepted
-                
-                if (!intercepted) {
-                    filterIndices += index
-                }
-                index++
+                data += if (dataColumn >= 0) c.getString(dataColumn) else ""
+                mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
             }
 
+            // Batch apply templates once for all items
+            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
+            val shouldIntercept = service.ruleSp.templates.applyTemplates(templates, data, mimeType)
+            
+            // Compute filter indices (items NOT intercepted)
+            val filterIndices = shouldIntercept.mapIndexedNotNull { index, intercepted ->
+                if (!intercepted) index else null
+            }.toIntArray()
+
             /** INTERCEPT */
-            if (shouldIntercept.isEmpty()) {
+            if (filterIndices.isEmpty()) {
                 // All items filtered out, cursor will be closed in finally
             } else {
                 c.moveToFirst()
-                param.result = FilteredCursor.createUsingFilter(c, filterIndices.toIntArray())
+                param.result = FilteredCursor.createUsingFilter(c, filterIndices)
                 cursorHandled = true // Cursor is now owned by FilteredCursor
             }
 

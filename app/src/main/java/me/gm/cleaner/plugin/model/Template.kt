@@ -22,6 +22,7 @@ import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
 import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import me.gm.cleaner.plugin.xposed.util.FileUtils
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
+import java.util.concurrent.ConcurrentHashMap
 
 data class Template(
     @field:SerializedName("template_name") val templateName: String,
@@ -40,8 +41,8 @@ class Templates(json: String?) {
     val values: List<Template>
         get() = _values
     
-    // Cache for filtered templates by (operation, packageName)
-    private val filteredCache = mutableMapOf<String, List<Template>>()
+    // Thread-safe cache for filtered templates by (operation, packageName)
+    private val filteredCache = ConcurrentHashMap<String, List<Template>>()
 
     init {
         if (!json.isNullOrEmpty()) {
