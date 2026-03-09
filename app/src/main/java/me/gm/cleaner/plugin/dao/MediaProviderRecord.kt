@@ -87,6 +87,9 @@ interface MediaProviderRecordDao {
     @Insert
     fun insert(records: MediaProviderRecord)
 
+    @Insert
+    fun insertAll(records: List<MediaProviderRecord>)
+
     @Delete
     fun delete(record: MediaProviderRecord)
 }

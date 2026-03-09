@@ -195,36 +195,49 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             val dataColumn = c.getColumnIndex(FileColumns.DATA)
             val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
+            // Pre-fetch templates once for all items
+            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
+            
+            // Combined: traverse cursor + match templates in single pass
             val data = mutableListOf<String>()
             val mimeType = mutableListOf<String>()
+            val shouldIntercept = mutableListOf<Boolean>()
+            val filterIndices = mutableListOf<Int>()
+            
+            var index = 0
             while (c.moveToNext()) {
-                data += if (dataColumn >= 0) c.getString(dataColumn) else ""
-                mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
+                val dataValue = if (dataColumn >= 0) c.getString(dataColumn) else ""
+                val mimeValue = if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
+                
+                data += dataValue
+                mimeType += mimeValue
+                
+                // Match template for this item
+                val intercepted = service.ruleSp.templates
+                    .applyTemplates(templates, listOf(dataValue), listOf(mimeValue)).first()
+                shouldIntercept += intercepted
+                
+                if (!intercepted) {
+                    filterIndices += index
+                }
+                index++
             }
 
             /** INTERCEPT */
-            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-            val shouldIntercept = service.ruleSp.templates
-                .applyTemplates(templates, data, mimeType)
             if (shouldIntercept.isEmpty()) {
                 // All items filtered out, cursor will be closed in finally
             } else {
                 c.moveToFirst()
-                val filter = shouldIntercept
-                    .mapIndexedNotNull { index, b ->
-                        if (!b) index else null
-                    }
-                    .toIntArray()
-                param.result = FilteredCursor.createUsingFilter(c, filter)
+                param.result = FilteredCursor.createUsingFilter(c, filterIndices.toIntArray())
                 cursorHandled = true // Cursor is now owned by FilteredCursor
             }
 
-            /** RECORD */
+            /** RECORD - use async insert */
             if (service.rootSp.getBoolean(
                     service.resources.getString(R.string.usage_record_key), true
                 )
             ) {
-                service.dao.insert(
+                service.insertRecordAsync(
                     MediaProviderRecord(
                         0,
                         System.currentTimeMillis(),
@@ -236,7 +249,6 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                         shouldIntercept
                     )
                 )
-                service.dispatchMediaChange()
             }
         } finally {
             if (!cursorHandled) {

@@ -154,12 +154,12 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
 
         // There is a system confirm dialog before deletion, thus we don't intercept delete operation.
 
-        /** RECORD */
+        /** RECORD - use async insert */
         if (service.rootSp.getBoolean(
                 service.resources.getString(R.string.usage_record_key), true
             )
         ) {
-            service.dao.insert(
+            service.insertRecordAsync(
                 MediaProviderRecord(
                     0,
                     System.currentTimeMillis(),
@@ -171,7 +171,6 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                     MutableList(data.size) { false }
                 )
             )
-            service.dispatchMediaChange()
         }
     }
 

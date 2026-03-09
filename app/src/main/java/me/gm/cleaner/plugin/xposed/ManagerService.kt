@@ -27,10 +27,13 @@ import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MIGRATION_1_2
+import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDao
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase
 import me.gm.cleaner.plugin.model.ParceledListSlice
 import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class ManagerService : IManagerService.Stub() {
     lateinit var classLoader: ClassLoader
@@ -47,6 +50,18 @@ abstract class ManagerService : IManagerService.Stub() {
     val ruleSp by lazy { TemplatesJsonFileSpImpl(File(context.filesDir, "rule")) }
 
     private var appUid: Int = -1
+
+    // Async database write mechanism
+    private val recordQueue = ConcurrentLinkedQueue<MediaProviderRecord>()
+    private var writeHandler: Handler? = null
+    private var handlerThread: HandlerThread? = null
+    private val hasPendingWrite = AtomicBoolean(false)
+    
+    companion object {
+        private const val MSG_WRITE_RECORDS = 1
+        private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
+        private const val MAX_BATCH_SIZE = 50
+    }
 
     private fun enforceCallerPermission() {
         val callingUid = Binder.getCallingUid()
@@ -67,6 +82,70 @@ abstract class ManagerService : IManagerService.Stub() {
             .addMigrations(MIGRATION_1_2)
             .build()
         dao = database.mediaProviderRecordDao()
+        
+        // Initialize async write handler
+        handlerThread = HandlerThread("MediaRecordWriter").also { it.start() }
+        writeHandler = object : Handler(handlerThread!!.looper) {
+            override fun handleMessage(msg: Message) {
+                if (msg.what == MSG_WRITE_RECORDS) {
+                    flushRecordQueue()
+                }
+            }
+        }
+    }
+    
+    /**
+     * Insert record asynchronously to avoid blocking MediaProvider thread.
+     * Records are batched and written in background thread.
+     */
+    fun insertRecordAsync(record: MediaProviderRecord) {
+        recordQueue.offer(record)
+        scheduleFlush()
+    }
+    
+    /**
+     * Insert multiple records asynchronously.
+     */
+    fun insertRecordsAsync(records: List<MediaProviderRecord>) {
+        records.forEach { recordQueue.offer(it) }
+        scheduleFlush()
+    }
+    
+    private fun scheduleFlush() {
+        if (hasPendingWrite.compareAndSet(false, true)) {
+            writeHandler?.sendEmptyMessageDelayed(MSG_WRITE_RECORDS, WRITE_DELAY_MS)
+        }
+    }
+    
+    private fun flushRecordQueue() {
+        hasPendingWrite.set(false)
+        val batch = mutableListOf<MediaProviderRecord>()
+        while (batch.size < MAX_BATCH_SIZE) {
+            val record = recordQueue.poll() ?: break
+            batch.add(record)
+        }
+        
+        if (batch.isNotEmpty()) {
+            try {
+                if (batch.size == 1) {
+                    dao.insert(batch[0])
+                } else {
+                    dao.insertAll(batch)
+                }
+            } catch (e: Exception) {
+                // Log and continue, don't crash the system process
+            }
+        }
+        
+        // If there are more records, schedule another flush
+        if (recordQueue.isNotEmpty()) {
+            scheduleFlush()
+        }
+        
+        // Dispatch media change after write
+        if (batch.isNotEmpty()) {
+            dispatchMediaChange()
+        }
     }
 
     private val packageManagerService: IInterface by lazy {
