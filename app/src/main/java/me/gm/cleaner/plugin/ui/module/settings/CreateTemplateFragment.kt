@@ -43,7 +43,7 @@ import me.gm.cleaner.plugin.ktx.colorSurface
 import me.gm.cleaner.plugin.ktx.mediumAnimTime
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
-import me.gm.cleaner.plugin.ui.module.BinderViewModel.Companion.SP_TEMPLATE_PREFERENCES
+import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.ui.module.settings.preference.AppListMultiSelectListPreference
 import me.gm.cleaner.plugin.ui.module.settings.preference.MaterialEditTextPreferenceDialogFragmentCompat
 import me.gm.cleaner.plugin.ui.module.settings.preference.MaterialMultiSelectListPreferenceDialogFragmentCompat
@@ -54,7 +54,7 @@ import kotlin.collections.set
 
 class CreateTemplateFragment : AbsSettingsFragment() {
     override val who: Int
-        get() = SP_TEMPLATE_PREFERENCES
+        get() = TEMPLATE_PREFERENCES
 
     private val args: CreateTemplateFragmentArgs by navArgs()
     private val lastTemplateName by lazy { bundleOf(KEY_TEMPLATE_NAME to currentTemplateName) }
@@ -210,7 +210,7 @@ class CreateTemplateFragment : AbsSettingsFragment() {
                     it.templateName == templateName || it.templateName == args.templateName
                 } + template
             )
-            binderViewModel.writeSp(SP_TEMPLATE_PREFERENCES, json)
+            binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
         }
         return true
     }

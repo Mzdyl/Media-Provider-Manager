@@ -30,12 +30,12 @@ import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.transition.platform.Hold
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.ktx.mediumAnimTime
-import me.gm.cleaner.plugin.ui.module.BinderViewModel.Companion.SP_ROOT_PREFERENCES
+import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
 import me.gm.cleaner.plugin.xposed.util.BackupUtils
 
 class SettingsFragment : AbsSettingsFragment() {
     override val who: Int
-        get() = SP_ROOT_PREFERENCES
+        get() = ROOT_PREFERENCES
 
     var enterKey: String? = null
 

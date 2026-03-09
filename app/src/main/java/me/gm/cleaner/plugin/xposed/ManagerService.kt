@@ -31,6 +31,7 @@ import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDao
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase
 import me.gm.cleaner.plugin.model.ParceledListSlice
+import me.gm.cleaner.plugin.model.SpIdentifiers
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -93,6 +94,9 @@ abstract class ManagerService : IManagerService.Stub() {
      * Should be called from Xposed hook when MediaProvider is shutting down.
      */
     protected fun onDestroy() {
+        // Flush remaining records before shutdown
+        flushRecordQueueSync()
+        
         writeHandler?.removeCallbacksAndMessages(null)
         writeHandler = null
         handlerThread?.quitSafely()
@@ -152,6 +156,36 @@ abstract class ManagerService : IManagerService.Stub() {
             dispatchMediaChange()
         }
     }
+    
+    /**
+     * Synchronously flush all remaining records in the queue.
+     * Used during shutdown to ensure no records are lost.
+     */
+    private fun flushRecordQueueSync() {
+        var totalFlushed = 0
+        while (recordQueue.isNotEmpty()) {
+            val batch = mutableListOf<MediaProviderRecord>()
+            while (batch.size < MAX_BATCH_SIZE) {
+                val record = recordQueue.poll() ?: break
+                batch.add(record)
+            }
+            
+            if (batch.isNotEmpty()) {
+                try {
+                    if (batch.size == 1) {
+                        dao.insert(batch[0])
+                    } else {
+                        dao.insertAll(batch)
+                    }
+                    totalFlushed += batch.size
+                } catch (e: Exception) {
+                    // Log and continue, don't crash the system process
+                }
+            } else {
+                break
+            }
+        }
+    }
 
     private val packageManagerService: IInterface by lazy {
         val binder = XposedHelpers.callStaticMethod(
@@ -193,8 +227,8 @@ abstract class ManagerService : IManagerService.Stub() {
     override fun readSp(who: Int): String? {
         enforceCallerPermission()
         return when (who) {
-            SP_ROOT_PREFERENCES -> rootSp.read()
-            SP_TEMPLATE_PREFERENCES -> ruleSp.read()
+            SpIdentifiers.ROOT_PREFERENCES -> rootSp.read()
+            SpIdentifiers.TEMPLATE_PREFERENCES -> ruleSp.read()
             else -> null
         }
     }
@@ -202,8 +236,8 @@ abstract class ManagerService : IManagerService.Stub() {
     override fun writeSp(who: Int, what: String) {
         enforceCallerPermission()
         when (who) {
-            SP_ROOT_PREFERENCES -> rootSp.write(what)
-            SP_TEMPLATE_PREFERENCES -> ruleSp.write(what)
+            SpIdentifiers.ROOT_PREFERENCES -> rootSp.write(what)
+            SpIdentifiers.TEMPLATE_PREFERENCES -> ruleSp.write(what)
         }
     }
 
@@ -253,10 +287,6 @@ abstract class ManagerService : IManagerService.Stub() {
 
     companion object {
         const val MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME = "media_provider.db"
-        
-        // SharedPreferences identifiers (must match client-side values)
-        const val SP_ROOT_PREFERENCES = 1
-        const val SP_TEMPLATE_PREFERENCES = 2
         
         private const val MSG_WRITE_RECORDS = 1
         private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms

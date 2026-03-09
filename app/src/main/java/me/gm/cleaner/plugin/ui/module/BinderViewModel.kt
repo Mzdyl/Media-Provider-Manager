@@ -29,6 +29,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
+import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
+import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import javax.inject.Inject
 
 @HiltViewModel
@@ -85,10 +87,10 @@ class BinderViewModel @Inject constructor(
         }
     }
     
-    fun readRootSp(): String? = readSp(SP_ROOT_PREFERENCES)
-    fun readTemplateSp(): String? = readSp(SP_TEMPLATE_PREFERENCES)
-    fun writeRootSp(what: String) = writeSp(SP_ROOT_PREFERENCES, what)
-    fun writeTemplateSp(what: String) = writeSp(SP_TEMPLATE_PREFERENCES, what)
+    fun readRootSp(): String? = readSp(ROOT_PREFERENCES)
+    fun readTemplateSp(): String? = readSp(TEMPLATE_PREFERENCES)
+    fun writeRootSp(what: String) = writeSp(ROOT_PREFERENCES, what)
+    fun writeTemplateSp(what: String) = writeSp(TEMPLATE_PREFERENCES, what)
 
     fun clearAllTables() {
         service?.clearAllTables()
@@ -108,9 +110,5 @@ class BinderViewModel @Inject constructor(
     companion object {
         const val AID_USER_OFFSET = 100000
         const val BINDER_EXTRA_KEY = "me.gm.cleaner.plugin.cursor.extra.BINDER"
-        
-        // SharedPreferences identifiers (must match service-side values)
-        const val SP_ROOT_PREFERENCES = 1
-        const val SP_TEMPLATE_PREFERENCES = 2
     }
 }
