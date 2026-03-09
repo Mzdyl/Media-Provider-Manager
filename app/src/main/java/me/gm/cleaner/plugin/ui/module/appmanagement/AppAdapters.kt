@@ -139,7 +139,7 @@ class TemplatesAdapter(private val fragment: AppFragment) :
                     when (item.itemId) {
                         R.id.menu_remove_from_template -> {
                             val modified =
-                                Templates(fragment.binderViewModel.readSp(R.xml.template_preferences))
+                                Templates(fragment.binderViewModel.readTemplateSp())
                                     .values.toMutableList()
                             val oldTemplateIndex =
                                 modified.indexOfFirst { it.templateName == templateName }
@@ -148,19 +148,15 @@ class TemplatesAdapter(private val fragment: AppFragment) :
                                 applyToApp = (oldTemplate.applyToApp ?: emptyList()) -
                                         fragment.args.packageInfo.packageName
                             )
-                            fragment.binderViewModel.writeSp(
-                                R.xml.template_preferences, Template.GSON.toJson(modified)
-                            )
+                            fragment.binderViewModel.writeTemplateSp(Template.GSON.toJson(modified))
                             true
                         }
 
                         R.id.menu_delete -> {
                             val modified =
-                                Templates(fragment.binderViewModel.readSp(R.xml.template_preferences))
+                                Templates(fragment.binderViewModel.readTemplateSp())
                                     .values.filterNot { it.templateName == templateName }
-                            fragment.binderViewModel.writeSp(
-                                R.xml.template_preferences, Template.GSON.toJson(modified)
-                            )
+                            fragment.binderViewModel.writeTemplateSp(Template.GSON.toJson(modified))
                             true
                         }
 
@@ -249,7 +245,7 @@ class AddToExistingTemplateAdapter(private val fragment: AppFragment) :
         )
         binding.root.transitionName = templateName
         binding.root.setOnClickListener {
-            val modified = Templates(fragment.binderViewModel.readSp(R.xml.template_preferences))
+            val modified = Templates(fragment.binderViewModel.readTemplateSp())
                 .values.toMutableList()
             val oldTemplateIndex = modified.indexOfFirst { it.templateName == templateName }
             val oldTemplate = modified[oldTemplateIndex]
@@ -257,9 +253,7 @@ class AddToExistingTemplateAdapter(private val fragment: AppFragment) :
                 applyToApp = mutableListOf(fragment.args.packageInfo.packageName) +
                         (oldTemplate.applyToApp ?: emptyList())
             )
-            fragment.binderViewModel.writeSp(
-                R.xml.template_preferences, Template.GSON.toJson(modified)
-            )
+            fragment.binderViewModel.writeTemplateSp(Template.GSON.toJson(modified))
         }
 
         if (fragment.lastTemplateName == templateName) {

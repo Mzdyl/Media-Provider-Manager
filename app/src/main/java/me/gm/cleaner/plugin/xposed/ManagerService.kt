@@ -193,17 +193,17 @@ abstract class ManagerService : IManagerService.Stub() {
     override fun readSp(who: Int): String? {
         enforceCallerPermission()
         return when (who) {
-            R.xml.root_preferences -> rootSp.read()
-            R.xml.template_preferences -> ruleSp.read()
-            else -> throw IllegalArgumentException()
+            SP_ROOT_PREFERENCES -> rootSp.read()
+            SP_TEMPLATE_PREFERENCES -> ruleSp.read()
+            else -> null
         }
     }
 
     override fun writeSp(who: Int, what: String) {
         enforceCallerPermission()
         when (who) {
-            R.xml.root_preferences -> rootSp.write(what)
-            R.xml.template_preferences -> ruleSp.write(what)
+            SP_ROOT_PREFERENCES -> rootSp.write(what)
+            SP_TEMPLATE_PREFERENCES -> ruleSp.write(what)
         }
     }
 
@@ -253,6 +253,10 @@ abstract class ManagerService : IManagerService.Stub() {
 
     companion object {
         const val MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME = "media_provider.db"
+        
+        // SharedPreferences identifiers (must match client-side values)
+        const val SP_ROOT_PREFERENCES = 1
+        const val SP_TEMPLATE_PREFERENCES = 2
         
         private const val MSG_WRITE_RECORDS = 1
         private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms

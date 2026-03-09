@@ -30,11 +30,12 @@ import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.transition.platform.Hold
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.ktx.mediumAnimTime
+import me.gm.cleaner.plugin.ui.module.BinderViewModel.Companion.SP_ROOT_PREFERENCES
 import me.gm.cleaner.plugin.xposed.util.BackupUtils
 
 class SettingsFragment : AbsSettingsFragment() {
     override val who: Int
-        get() = R.xml.root_preferences
+        get() = SP_ROOT_PREFERENCES
 
     var enterKey: String? = null
 
@@ -80,7 +81,7 @@ class SettingsFragment : AbsSettingsFragment() {
 
             getString(R.string.backup_key) -> {
                 itemView.setOnClickListener {
-                    val rulesJson = binderViewModel.readSp(R.xml.template_preferences)
+                    val rulesJson = binderViewModel.readTemplateSp()
                     BackupUtils.backupToClipboard(requireContext(), rulesJson)
                 }
             }
@@ -89,7 +90,7 @@ class SettingsFragment : AbsSettingsFragment() {
                 itemView.setOnClickListener {
                     val json = BackupUtils.getFromClipboard(requireContext())
                     if (json != null) {
-                        binderViewModel.writeSp(R.xml.template_preferences, json)
+                        binderViewModel.writeTemplateSp(json)
                         Toast.makeText(requireContext(), R.string.restore_ok, Toast.LENGTH_SHORT).show()
                     }
                 }

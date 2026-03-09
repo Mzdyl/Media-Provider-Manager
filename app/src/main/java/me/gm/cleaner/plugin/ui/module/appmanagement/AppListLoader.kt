@@ -21,7 +21,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.model.Templates
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import java.util.concurrent.atomic.AtomicInteger
@@ -42,7 +41,7 @@ class AppListLoader(private val defaultDispatcher: CoroutineDispatcher = Dispatc
         binderViewModel: BinderViewModel, pm: PackageManager, l: ProgressListener?
     ) = withContext(defaultDispatcher) {
         val packageNameToRuleCount =
-            fetchRuleCount(Templates(binderViewModel.readSp(R.xml.template_preferences)))
+            fetchRuleCount(Templates(binderViewModel.readTemplateSp()))
         val installedPackages = binderViewModel.getInstalledPackages(PackageManager.GET_PERMISSIONS)
         val size = installedPackages.size
         val count = AtomicInteger(0)
@@ -60,7 +59,7 @@ class AppListLoader(private val defaultDispatcher: CoroutineDispatcher = Dispatc
     suspend fun update(old: List<AppListModel>, binderViewModel: BinderViewModel) =
         withContext(defaultDispatcher) {
             val packageNameToRuleCount =
-                fetchRuleCount(Templates(binderViewModel.readSp(R.xml.template_preferences)))
+                fetchRuleCount(Templates(binderViewModel.readTemplateSp()))
             old.map {
                 it.copy(
                     ruleCount = packageNameToRuleCount.getOrDefault(it.packageInfo.packageName, 0)

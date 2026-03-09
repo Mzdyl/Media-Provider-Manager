@@ -84,6 +84,11 @@ class BinderViewModel @Inject constructor(
             }
         }
     }
+    
+    fun readRootSp(): String? = readSp(SP_ROOT_PREFERENCES)
+    fun readTemplateSp(): String? = readSp(SP_TEMPLATE_PREFERENCES)
+    fun writeRootSp(what: String) = writeSp(SP_ROOT_PREFERENCES, what)
+    fun writeTemplateSp(what: String) = writeSp(SP_TEMPLATE_PREFERENCES, what)
 
     fun clearAllTables() {
         service?.clearAllTables()
@@ -103,5 +108,9 @@ class BinderViewModel @Inject constructor(
     companion object {
         const val AID_USER_OFFSET = 100000
         const val BINDER_EXTRA_KEY = "me.gm.cleaner.plugin.cursor.extra.BINDER"
+        
+        // SharedPreferences identifiers (must match service-side values)
+        const val SP_ROOT_PREFERENCES = 1
+        const val SP_TEMPLATE_PREFERENCES = 2
     }
 }
