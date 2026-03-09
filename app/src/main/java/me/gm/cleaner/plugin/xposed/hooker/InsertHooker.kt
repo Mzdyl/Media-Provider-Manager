@@ -108,12 +108,12 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             param.result = null
         }
 
-        /** RECORD */
+        /** RECORD - use async insert */
         if (service.rootSp.getBoolean(
                 service.resources.getString(R.string.usage_record_key), true
             )
         ) {
-            service.dao.insert(
+            service.insertRecordAsync(
                 MediaProviderRecord(
                     0,
                     System.currentTimeMillis(),
@@ -125,7 +125,6 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
                     listOf(shouldIntercept)
                 )
             )
-            service.dispatchMediaChange()
         }
     }
 

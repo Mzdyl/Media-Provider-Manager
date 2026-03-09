@@ -29,6 +29,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
+import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
+import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import javax.inject.Inject
 
 @HiltViewModel
@@ -84,6 +86,11 @@ class BinderViewModel @Inject constructor(
             }
         }
     }
+    
+    fun readRootSp(): String? = readSp(ROOT_PREFERENCES)
+    fun readTemplateSp(): String? = readSp(TEMPLATE_PREFERENCES)
+    fun writeRootSp(what: String) = writeSp(ROOT_PREFERENCES, what)
+    fun writeTemplateSp(what: String) = writeSp(TEMPLATE_PREFERENCES, what)
 
     fun clearAllTables() {
         service?.clearAllTables()

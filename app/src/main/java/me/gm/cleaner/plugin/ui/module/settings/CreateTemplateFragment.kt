@@ -43,6 +43,7 @@ import me.gm.cleaner.plugin.ktx.colorSurface
 import me.gm.cleaner.plugin.ktx.mediumAnimTime
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
+import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.ui.module.settings.preference.AppListMultiSelectListPreference
 import me.gm.cleaner.plugin.ui.module.settings.preference.MaterialEditTextPreferenceDialogFragmentCompat
 import me.gm.cleaner.plugin.ui.module.settings.preference.MaterialMultiSelectListPreferenceDialogFragmentCompat
@@ -53,7 +54,7 @@ import kotlin.collections.set
 
 class CreateTemplateFragment : AbsSettingsFragment() {
     override val who: Int
-        get() = R.xml.template_preferences
+        get() = TEMPLATE_PREFERENCES
 
     private val args: CreateTemplateFragmentArgs by navArgs()
     private val lastTemplateName by lazy { bundleOf(KEY_TEMPLATE_NAME to currentTemplateName) }
@@ -69,7 +70,7 @@ class CreateTemplateFragment : AbsSettingsFragment() {
                     tempSp = try {
                         JsonSharedPreferencesImpl(
                             Template.GSON.toJson(
-                                Templates(binderViewModel.readSp(R.xml.template_preferences)).values.first {
+                                Templates(binderViewModel.readTemplateSp()).values.first {
                                     it.templateName == if (savedInstanceState == null) args.templateName
                                     else savedInstanceState.getString(KEY_TEMPLATE_NAME)
                                 }
@@ -103,7 +104,7 @@ class CreateTemplateFragment : AbsSettingsFragment() {
             Preference.OnPreferenceChangeListener { _, newValue ->
                 when {
                     args.templateName == newValue as String -> false
-                    Templates(binderViewModel.readSp(R.xml.template_preferences)).values
+                    Templates(binderViewModel.readTemplateSp()).values
                         .any { it.templateName == newValue } -> {
                         Snackbar.make(
                             requireView(), R.string.template_name_not_unique, Snackbar.LENGTH_SHORT
@@ -205,11 +206,11 @@ class CreateTemplateFragment : AbsSettingsFragment() {
         if (!templateName.isNullOrEmpty() && hookOperationValues?.isNotEmpty() == true) {
             val template = Template.GSON.fromJson(tempSp.delegate.toString(), Template::class.java)
             val json = Template.GSON.toJson(
-                Templates(binderViewModel.readSp(R.xml.template_preferences)).values.filterNot {
+                Templates(binderViewModel.readTemplateSp()).values.filterNot {
                     it.templateName == templateName || it.templateName == args.templateName
                 } + template
             )
-            binderViewModel.writeSp(who, json)
+            binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
         }
         return true
     }

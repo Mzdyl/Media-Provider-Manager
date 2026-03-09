@@ -22,6 +22,7 @@ import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
 import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import me.gm.cleaner.plugin.xposed.util.FileUtils
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
+import java.util.concurrent.ConcurrentHashMap
 
 data class Template(
     @field:SerializedName("template_name") val templateName: String,
@@ -39,6 +40,9 @@ class Templates(json: String?) {
     private val _values = mutableListOf<Template>()
     val values: List<Template>
         get() = _values
+    
+    // Thread-safe cache for filtered templates by (operation, packageName)
+    private val filteredCache = ConcurrentHashMap<String, List<Template>>()
 
     init {
         if (!json.isNullOrEmpty()) {
@@ -49,12 +53,18 @@ class Templates(json: String?) {
     }
 
     fun getFilteredTemplates(cls: Class<*>, packageName: String): List<Template> {
-        return _values.filter { template ->
-            when (cls) {
-                QueryHooker::class.java -> template.hookOperation.contains("query")
-                InsertHooker::class.java -> template.hookOperation.contains("insert")
-                else -> throw IllegalArgumentException()
-            } && template.applyToApp?.contains(packageName) == true
+        val operation = when (cls) {
+            QueryHooker::class.java -> "query"
+            InsertHooker::class.java -> "insert"
+            else -> throw IllegalArgumentException()
+        }
+        
+        val cacheKey = "$operation:$packageName"
+        return filteredCache.getOrPut(cacheKey) {
+            _values.filter { template ->
+                template.hookOperation.contains(operation) &&
+                        template.applyToApp?.contains(packageName) == true
+            }
         }
     }
 

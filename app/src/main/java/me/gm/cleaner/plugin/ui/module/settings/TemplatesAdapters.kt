@@ -113,11 +113,9 @@ class TemplatesAdapter(private val fragment: TemplatesFragment) :
                 it.setOnMenuItemClickListener { item ->
                     if (item.itemId == R.id.menu_delete) {
                         val modified =
-                            Templates(fragment.binderViewModel.readSp(R.xml.template_preferences))
+                            Templates(fragment.binderViewModel.readTemplateSp())
                                 .values.filterNot { it.templateName == templateName }
-                        fragment.binderViewModel.writeSp(
-                            R.xml.template_preferences, Template.GSON.toJson(modified)
-                        )
+                        fragment.binderViewModel.writeTemplateSp(Template.GSON.toJson(modified))
                         true
                     } else {
                         false

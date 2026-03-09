@@ -93,7 +93,7 @@ class TemplatesFragment : ModuleFragment() {
     }
 
     private fun prepareCurrentList(): List<Template> =
-        Templates(binderViewModel.readSp(R.xml.template_preferences)).values
+        Templates(binderViewModel.readTemplateSp()).values
             .sortedWith(collatorComparator { it.templateName })
 
     private fun prepareTransitions(list: RecyclerView, position: Int) {

@@ -132,7 +132,7 @@ class AppFragment : ModuleFragment() {
     }
 
     private fun prepareCurrentList(): Pair<List<Template>, List<Template>> =
-        Templates(binderViewModel.readSp(R.xml.template_preferences)).values
+        Templates(binderViewModel.readTemplateSp()).values
             .sortedWith(collatorComparator { it.templateName })
             .partition { it.applyToApp?.contains(args.packageInfo.packageName) == true }
 

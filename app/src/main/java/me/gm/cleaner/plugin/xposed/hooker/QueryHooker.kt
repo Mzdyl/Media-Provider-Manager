@@ -195,6 +195,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             val dataColumn = c.getColumnIndex(FileColumns.DATA)
             val mimeTypeColumn = c.getColumnIndex(FileColumns.MIME_TYPE)
 
+            // Single pass: traverse cursor and collect data
             val data = mutableListOf<String>()
             val mimeType = mutableListOf<String>()
             while (c.moveToNext()) {
@@ -202,29 +203,30 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 mimeType += if (mimeTypeColumn >= 0) c.getString(mimeTypeColumn) else ""
             }
 
-            /** INTERCEPT */
+            // Batch apply templates once for all items
             val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-            val shouldIntercept = service.ruleSp.templates
-                .applyTemplates(templates, data, mimeType)
-            if (shouldIntercept.isEmpty()) {
+            val shouldIntercept = service.ruleSp.templates.applyTemplates(templates, data, mimeType)
+            
+            // Compute filter indices (items NOT intercepted)
+            val filterIndices = shouldIntercept.mapIndexedNotNull { index, intercepted ->
+                if (!intercepted) index else null
+            }.toIntArray()
+
+            /** INTERCEPT */
+            if (filterIndices.isEmpty()) {
                 // All items filtered out, cursor will be closed in finally
             } else {
                 c.moveToFirst()
-                val filter = shouldIntercept
-                    .mapIndexedNotNull { index, b ->
-                        if (!b) index else null
-                    }
-                    .toIntArray()
-                param.result = FilteredCursor.createUsingFilter(c, filter)
+                param.result = FilteredCursor.createUsingFilter(c, filterIndices)
                 cursorHandled = true // Cursor is now owned by FilteredCursor
             }
 
-            /** RECORD */
+            /** RECORD - use async insert */
             if (service.rootSp.getBoolean(
                     service.resources.getString(R.string.usage_record_key), true
                 )
             ) {
-                service.dao.insert(
+                service.insertRecordAsync(
                     MediaProviderRecord(
                         0,
                         System.currentTimeMillis(),
@@ -236,7 +238,6 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                         shouldIntercept
                     )
                 )
-                service.dispatchMediaChange()
             }
         } finally {
             if (!cursorHandled) {
