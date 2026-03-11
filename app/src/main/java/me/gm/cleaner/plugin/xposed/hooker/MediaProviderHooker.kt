@@ -141,7 +141,19 @@ interface MediaProviderHooker {
             )
             XposedHelpers.callStaticMethod(fuseDaemonCls, "native_is_fuse_thread") as Boolean
         } catch (e: XposedHelpers.ClassNotFoundError) {
-            false
+            // Android 16+ may have changed FUSE architecture
+            // Try to detect via alternative method on MediaProvider itself
+            try {
+                XposedHelpers.callMethod(thisObject, "isFuseThread") as Boolean
+            } catch (e2: Throwable) {
+                // If we cannot determine, be conservative and assume it IS a FUSE thread
+                // to avoid interfering with critical storage operations
+                dlog("Cannot determine FUSE thread status, assuming FUSE thread to be safe: $e2")
+                true
+            }
+        } catch (e: Throwable) {
+            dlog("Unexpected error checking FUSE thread: $e")
+            true  // Be conservative
         }
 
     val XC_MethodHook.MethodHookParam.isSystemCallingPackage: Boolean

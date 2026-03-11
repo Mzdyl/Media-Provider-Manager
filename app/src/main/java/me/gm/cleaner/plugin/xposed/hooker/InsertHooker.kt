@@ -82,6 +82,14 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             return
         } as Int
 
+        // Android 16 compatibility: Skip if this is an Android/data directory operation
+        // to avoid interfering with app private storage directory creation
+        val relativePath = values.getAsString(MediaStore.MediaColumns.RELATIVE_PATH)
+        if (isAndroidDataOperation(relativePath)) {
+            dlog("Skipping Android/data directory operation: $relativePath")
+            return
+        }
+
         /** PARSE */
         var mimeType = values.getAsString(MediaStore.MediaColumns.MIME_TYPE)
         val wasPathEmpty = wasPathEmpty(values)
@@ -131,6 +139,20 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
     private fun wasPathEmpty(values: ContentValues) =
         !values.containsKey(MediaStore.MediaColumns.DATA)
                 || values.getAsString(MediaStore.MediaColumns.DATA).isEmpty()
+
+    /**
+     * Check if the operation targets Android/data or Android/obb directories.
+     * These are app-private storage directories that should not be intercepted
+     * to avoid breaking app storage access on Android 16+.
+     */
+    private fun isAndroidDataOperation(relativePath: String?): Boolean {
+        if (relativePath.isNullOrEmpty()) return false
+        val normalizedPath = relativePath.lowercase().trimEnd('/')
+        return normalizedPath.startsWith("android/data/") ||
+               normalizedPath.startsWith("android/obb/") ||
+               normalizedPath == "android/data" ||
+               normalizedPath == "android/obb"
+    }
 
     private fun ensureUniqueFileColumns(
         thisObject: Any, match: Int, uri: Uri, values: ContentValues, mimeType: String?
@@ -196,31 +218,38 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val resolvedVolumeName = XposedHelpers.callMethod(
-                thisObject, "resolveVolumeName", uri
-            ) as String
-            val volumePath = XposedHelpers.callMethod(
-                thisObject, "getVolumePath", resolvedVolumeName
-            ) as File
+            try {
+                val resolvedVolumeName = XposedHelpers.callMethod(
+                    thisObject, "resolveVolumeName", uri
+                ) as String
+                val volumePath = XposedHelpers.callMethod(
+                    thisObject, "getVolumePath", resolvedVolumeName
+                ) as File
 
-            val fileUtilsClass = XposedHelpers.findClass(
-                "com.android.providers.media.util.FileUtils", service.classLoader
-            )
-            val isFuseThread = XposedHelpers.callMethod(thisObject, "isFuseThread")
-                    as Boolean
-            XposedHelpers.callStaticMethod(
-                fileUtilsClass, "sanitizeValues", values, !isFuseThread
-            )
-            XposedHelpers.callStaticMethod(
-                fileUtilsClass, "computeDataFromValues", values, volumePath, isFuseThread
-            )
+                val fileUtilsClass = XposedHelpers.findClass(
+                    "com.android.providers.media.util.FileUtils", service.classLoader
+                )
+                val isFuseThread = XposedHelpers.callMethod(thisObject, "isFuseThread")
+                        as Boolean
+                XposedHelpers.callStaticMethod(
+                    fileUtilsClass, "sanitizeValues", values, !isFuseThread
+                )
+                XposedHelpers.callStaticMethod(
+                    fileUtilsClass, "computeDataFromValues", values, volumePath, isFuseThread
+                )
 
-            var res = File(values.getAsString(MediaStore.MediaColumns.DATA))
-            res = XposedHelpers.callStaticMethod(
-                fileUtilsClass, "buildUniqueFile", res.parentFile, mimeType, res.name
-            ) as File
+                var res = File(values.getAsString(MediaStore.MediaColumns.DATA))
+                res = XposedHelpers.callStaticMethod(
+                    fileUtilsClass, "buildUniqueFile", res.parentFile, mimeType, res.name
+                ) as File
 
-            values.put(MediaStore.MediaColumns.DATA, res.absolutePath)
+                values.put(MediaStore.MediaColumns.DATA, res.absolutePath)
+            } catch (t: Throwable) {
+                // Android 16 compatibility: If internal methods fail or behave differently,
+                // return early to let the original implementation handle it
+                dlog("ensureUniqueFileColumns failed, letting original implementation handle: $t")
+                return
+            }
         } else {
             val resolvedVolumeName = XposedHelpers.callMethod(
                 thisObject, "resolveVolumeName", uri
