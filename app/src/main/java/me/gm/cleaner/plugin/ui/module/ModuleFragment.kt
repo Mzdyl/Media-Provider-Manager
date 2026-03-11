@@ -30,14 +30,8 @@ abstract class ModuleFragment : BaseFragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        // When Xposed is not active, show the guide layout
-        return if (!binderViewModel.pingBinder()) {
-            ModuleFragmentBinding.inflate(layoutInflater).root
-        } else {
-            // When active, return an empty placeholder - subclass should override this method
-            // to provide its own layout
-            super.onCreateView(inflater, container, savedInstanceState)
-                ?: ModuleFragmentBinding.inflate(layoutInflater).root
-        }
+        // Always return a valid view to avoid race condition where binder becomes available
+        // between subclass check and this check
+        return ModuleFragmentBinding.inflate(layoutInflater).root
     }
 }
