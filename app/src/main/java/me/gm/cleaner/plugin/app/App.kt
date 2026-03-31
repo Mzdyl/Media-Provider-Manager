@@ -44,6 +44,12 @@ class App : Application() {
         reduceScaledMinimumScalingSpan()
     }
 
+    override fun onTerminate() {
+        super.onTerminate()
+        // Unregister all SharedPreferences listeners to prevent memory leaks
+        RootPreferences.unregisterAll()
+    }
+
     @SuppressLint("BlockedPrivateApi")
     private fun reduceScaledMinimumScalingSpan() {
         // Reduce ScaledMinimumScalingSpan due to the following reasons:

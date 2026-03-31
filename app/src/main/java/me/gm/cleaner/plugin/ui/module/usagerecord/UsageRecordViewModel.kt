@@ -112,7 +112,7 @@ class UsageRecordViewModel(
 
     // Cache for package info to avoid repeated Binder calls (thread-safe)
     private val packageInfoCache = java.util.concurrent.ConcurrentHashMap<String, PackageInfo?>()
-    
+
     private suspend fun load(
         start: Long, end: Long,
         isHideQuery: Boolean, isHideInsert: Boolean, isHideDelete: Boolean
@@ -162,21 +162,26 @@ class UsageRecordViewModel(
         }
     }
 
-    init {
-        viewModelScope.launch {
-            combine(
-                _selectedTimeFlow,
-                isHideQueryFlow,
-                isHideInsertFlow,
-                isHideDeleteFlow,
-            ) { selectedTime, isHideQuery, isHideInsert, isHideDelete ->
-                _recordsFlow.value = UsageRecordState.Loading
-                val (start, end) = calculateSelectedTime(selectedTime)
-                load(start, end, isHideQuery, isHideInsert, isHideDelete)
-            }.collect {
-                _recordsFlow.value = it
-            }
+    // Listen to filter preferences changes and reload data automatically
+    private var filterPreferencesJob = viewModelScope.launch {
+        combine(
+            isHideQueryFlow,
+            isHideInsertFlow,
+            isHideDeleteFlow,
+        ) { isHideQuery, isHideInsert, isHideDelete ->
+            val (start, end) = calculateSelectedTime(selectedTime)
+            load(start, end, isHideQuery, isHideInsert, isHideDelete)
+        }.collect {
+            _recordsFlow.value = it
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Clear package info cache to free memory
+        packageInfoCache.clear()
+        // Cancel filter preferences job
+        filterPreferencesJob.cancel()
     }
 
     companion object {

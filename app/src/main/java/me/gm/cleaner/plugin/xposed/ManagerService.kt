@@ -96,11 +96,17 @@ abstract class ManagerService : IManagerService.Stub() {
     protected fun onDestroy() {
         // Flush remaining records before shutdown
         flushRecordQueueSync()
-        
+
+        // Remove pending dispatch callbacks
         writeHandler?.removeCallbacksAndMessages(null)
+        dispatchScheduled = false
+        
         writeHandler = null
         handlerThread?.quitSafely()
         handlerThread = null
+        
+        // Clear observers
+        observers.kill()
     }
     
     /**
@@ -260,36 +266,57 @@ abstract class ManagerService : IManagerService.Stub() {
     }
 
     private var lastDispatchTime = 0L
+    private var dispatchScheduled = false
 
     /**
      * Dispatch media change with debouncing to avoid excessive notifications.
      * Multiple calls within 500ms will be coalesced into a single notification.
+     * Uses a scheduled approach to batch multiple rapid changes.
      */
     @Synchronized
     fun dispatchMediaChange() {
         val now = SystemClock.uptimeMillis()
-        if (now - lastDispatchTime >= 500) {
-            lastDispatchTime = now
-            var i = observers.beginBroadcast()
-            while (i > 0) {
-                i--
-                val observer = observers.getBroadcastItem(i)
-                if (observer != null) {
-                    try {
-                        observer.onChange()
-                    } catch (ignored: RemoteException) {
-                    }
+        
+        // If we're within the debounce window, schedule a delayed dispatch
+        if (now - lastDispatchTime < DEBOUNCE_INTERVAL_MS) {
+            if (!dispatchScheduled) {
+                dispatchScheduled = true
+                writeHandler?.postDelayed({
+                    dispatchMediaChangeInternal()
+                }, DEBOUNCE_INTERVAL_MS - (now - lastDispatchTime))
+            }
+            return
+        }
+        
+        // Otherwise, dispatch immediately
+        dispatchMediaChangeInternal()
+    }
+    
+    private fun dispatchMediaChangeInternal() {
+        val now = SystemClock.uptimeMillis()
+        lastDispatchTime = now
+        dispatchScheduled = false
+        
+        var i = observers.beginBroadcast()
+        while (i > 0) {
+            i--
+            val observer = observers.getBroadcastItem(i)
+            if (observer != null) {
+                try {
+                    observer.onChange()
+                } catch (ignored: RemoteException) {
                 }
             }
-            observers.finishBroadcast()
         }
+        observers.finishBroadcast()
     }
 
     companion object {
         const val MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME = "media_provider.db"
-        
+
         private const val MSG_WRITE_RECORDS = 1
         private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
         private const val MAX_BATCH_SIZE = 50
+        private const val DEBOUNCE_INTERVAL_MS = 500L // Debounce interval for media change notifications
     }
 }

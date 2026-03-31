@@ -22,6 +22,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -45,14 +46,23 @@ class AppListViewModel(
     val isLoading: Boolean
         get() = _appsFlow.value is AppListState.Loading
     private val _appsFlow = MutableStateFlow<AppListState>(AppListState.Loading(0))
+    
+    // Cache for preferences flows to avoid repeated access
+    private val isHideSystemAppFlow = RootPreferences.isHideSystemAppFlowable.asFlow()
+    private val sortByFlow = RootPreferences.sortByFlowable.asFlow()
+    private val ruleCountFlow = RootPreferences.ruleCountFlowable.asFlow()
+    
+    // Store the combine job for cancellation
+    private var appsCombineJob: Job? = null
+    
     val appsFlow =
         combine(
             _appsFlow,
             _isSearchingFlow,
             _queryTextFlow,
-            RootPreferences.isHideSystemAppFlowable.asFlow(),
-            RootPreferences.sortByFlowable.asFlow(),
-            RootPreferences.ruleCountFlowable.asFlow(),
+            isHideSystemAppFlow,
+            sortByFlow,
+            ruleCountFlow,
         ) { apps, isSearching, queryText, isHideSystemApp, sortBy, ruleCount ->
             when (apps) {
                 is AppListState.Loading -> AppListState.Loading(apps.progress)
@@ -119,6 +129,12 @@ class AppListViewModel(
 
     init {
         load()
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Cancel combine job to prevent memory leaks
+        appsCombineJob?.cancel()
     }
 
     companion object {

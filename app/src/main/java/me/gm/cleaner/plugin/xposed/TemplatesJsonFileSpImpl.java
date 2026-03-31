@@ -31,7 +31,10 @@ public final class TemplatesJsonFileSpImpl extends JsonFileSpImpl {
     @Override
     public void write(String what) {
         super.write(what);
-        // Create new Templates instance which clears its internal cache
+        // Clear old cache and create new Templates instance
+        if (templatesCache != null) {
+            templatesCache.clearCache();
+        }
         templatesCache = new Templates(what);
     }
 

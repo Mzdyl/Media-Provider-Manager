@@ -23,6 +23,7 @@ import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.util.FlowableSharedPreferences
+import java.util.concurrent.CopyOnWriteArrayList
 
 object RootPreferences {
     const val SORT_BY_APP_NAME = 0
@@ -32,10 +33,22 @@ object RootPreferences {
     const val SORT_BY_SIZE = 2
     private lateinit var resources: Resources
     private lateinit var defaultSp: SharedPreferences
+    
+    // Track all FlowableSharedPreferences instances for cleanup
+    private val flowablePrefs = CopyOnWriteArrayList<FlowableSharedPreferences<*>>()
 
     fun init(context: Context) {
         resources = context.resources
         defaultSp = PreferenceManager.getDefaultSharedPreferences(context)
+    }
+    
+    /**
+     * Unregister all FlowableSharedPreferences listeners.
+     * Call this when the application is being destroyed to prevent memory leaks.
+     */
+    fun unregisterAll() {
+        flowablePrefs.forEach { it.unregister() }
+        flowablePrefs.clear()
     }
 
     var startDestination: Int
@@ -52,21 +65,21 @@ object RootPreferences {
             defaultSp,
             resources.getString(R.string.sort_key),
             SORT_BY_APP_NAME
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val ruleCountFlowable: FlowableSharedPreferences<Boolean> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.menu_rule_count_key),
             true
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val isHideSystemAppFlowable: FlowableSharedPreferences<Boolean> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.menu_hide_system_app_key),
             true
-        )
+        ).also { flowablePrefs.add(it) }
     }
 
     // USAGE RECORD
@@ -75,21 +88,21 @@ object RootPreferences {
             defaultSp,
             resources.getString(R.string.menu_hide_query_key),
             false
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val isHideInsertFlowable: FlowableSharedPreferences<Boolean> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.menu_hide_insert_key),
             false
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val isHideDeleteFlowable: FlowableSharedPreferences<Boolean> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.menu_hide_delete_key),
             false
-        )
+        ).also { flowablePrefs.add(it) }
     }
 
     // MEDIA STORE
@@ -98,20 +111,20 @@ object RootPreferences {
             defaultSp,
             resources.getString(R.string.sort_media_key),
             SORT_BY_PATH
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val spanCountFlowable: FlowableSharedPreferences<Int> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.span_count_key),
             3
-        )
+        ).also { flowablePrefs.add(it) }
     }
     val playbackSpeedFlowable: FlowableSharedPreferences<Float> by lazy {
         FlowableSharedPreferences(
             defaultSp,
             resources.getString(R.string.playback_speed_key),
             1F
-        )
+        ).also { flowablePrefs.add(it) }
     }
 }

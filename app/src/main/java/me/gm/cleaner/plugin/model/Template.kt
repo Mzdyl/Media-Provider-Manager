@@ -23,6 +23,7 @@ import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import me.gm.cleaner.plugin.xposed.util.FileUtils
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 
 data class Template(
     @field:SerializedName("template_name") val templateName: String,
@@ -40,9 +41,16 @@ class Templates(json: String?) {
     private val _values = mutableListOf<Template>()
     val values: List<Template>
         get() = _values
-    
+
     // Thread-safe cache for filtered templates by (operation, packageName)
+    // Use LRU-style cache to prevent unbounded memory growth
     private val filteredCache = ConcurrentHashMap<String, List<Template>>()
+    private val accessOrderQueue = ConcurrentLinkedQueue<String>()
+    
+    // Maximum cache size to prevent memory leaks
+    companion object {
+        private const val MAX_CACHE_SIZE = 200
+    }
 
     init {
         if (!json.isNullOrEmpty()) {
@@ -51,6 +59,14 @@ class Templates(json: String?) {
             )
         }
     }
+    
+    /**
+     * Clear the cache. Should be called when templates are updated.
+     */
+    fun clearCache() {
+        filteredCache.clear()
+        accessOrderQueue.clear()
+    }
 
     fun getFilteredTemplates(cls: Class<*>, packageName: String): List<Template> {
         val operation = when (cls) {
@@ -58,12 +74,38 @@ class Templates(json: String?) {
             InsertHooker::class.java -> "insert"
             else -> throw IllegalArgumentException()
         }
-        
+
         val cacheKey = "$operation:$packageName"
-        return filteredCache.getOrPut(cacheKey) {
+        
+        // Get or compute value
+        val result = filteredCache.getOrPut(cacheKey) {
             _values.filter { template ->
                 template.hookOperation.contains(operation) &&
                         template.applyToApp?.contains(packageName) == true
+            }
+        }
+        
+        // Update access order for LRU eviction
+        accessOrderQueue.remove(cacheKey)
+        accessOrderQueue.offer(cacheKey)
+        
+        // Evict oldest entries if cache exceeds max size
+        evictOldestIfNeeded()
+        
+        return result
+    }
+    
+    /**
+     * Evict oldest entries when cache exceeds max size.
+     * Uses LRU (Least Recently Used) eviction policy.
+     */
+    private fun evictOldestIfNeeded() {
+        while (filteredCache.size > MAX_CACHE_SIZE) {
+            val oldestKey = accessOrderQueue.poll()
+            if (oldestKey != null) {
+                filteredCache.remove(oldestKey)
+            } else {
+                break
             }
         }
     }
