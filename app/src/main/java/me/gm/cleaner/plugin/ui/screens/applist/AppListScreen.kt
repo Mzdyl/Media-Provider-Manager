@@ -67,6 +67,7 @@ fun AppListScreen(
                 isSearching = isSearching,
                 onSearchQueryChange = { searchQuery = it },
                 onSearchToggle = { isSearching = !isSearching },
+                onRefresh = { viewModel.load() },
                 scrollBehavior = scrollBehavior,
             )
         },

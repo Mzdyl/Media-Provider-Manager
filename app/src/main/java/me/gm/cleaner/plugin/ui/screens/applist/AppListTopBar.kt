@@ -1,12 +1,14 @@
 package me.gm.cleaner.plugin.ui.screens.applist
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -28,10 +30,13 @@ fun AppListTopBar(
     isSearching: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onSearchToggle: () -> Unit,
+    onRefresh: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     var showSortMenu by mutableStateOf(false)
     val currentSort by RootPreferences.sortByFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.sortByFlowable.value)
+    val hideSystemApp by RootPreferences.isHideSystemAppFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideSystemAppFlowable.value)
+    val showRuleCount by RootPreferences.ruleCountFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.ruleCountFlowable.value)
 
     TopAppBar(
         title = { Text(stringResource(R.string.app_management)) },
@@ -47,6 +52,9 @@ fun AppListTopBar(
                     placeholder = { Text(stringResource(R.string.search)) },
                     singleLine = true,
                 )
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
             }
             IconButton(onClick = { showSortMenu = true }) {
                 Icon(Icons.Default.Sort, contentDescription = "Sort")
@@ -80,6 +88,17 @@ fun AppListTopBar(
                             onCheckedChange = null,
                         )
                     },
+                )
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.menu_hide_system_app_title)) },
+                    onClick = { RootPreferences.isHideSystemAppFlowable.value = !hideSystemApp },
+                    trailingIcon = { Checkbox(checked = hideSystemApp, onCheckedChange = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.menu_rule_count)) },
+                    onClick = { RootPreferences.ruleCountFlowable.value = !showRuleCount },
+                    trailingIcon = { Checkbox(checked = showRuleCount, onCheckedChange = null) },
                 )
             }
         },
