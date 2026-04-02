@@ -73,6 +73,7 @@ fun AppDetailScreen(
     templates: List<Template> = emptyList(),
     onNavigateBack: () -> Unit,
     onCreateTemplate: () -> Unit,
+    onEditTemplate: (Template) -> Unit,
     binderViewModel: BinderViewModel,
 ) {
     val appTemplates = templates.filter { packageName in (it.applyToApp ?: emptyList()) }
@@ -127,6 +128,7 @@ fun AppDetailScreen(
                 items(appTemplates, key = { it.templateName }) { template ->
                     AppliedTemplateCard(
                         template = template,
+                        onClick = { onEditTemplate(template) },
                         onRemove = {
                             updateTemplateApplyToApp(binderViewModel, template, packageName, remove = true)
                         },
@@ -220,11 +222,14 @@ private fun updateTemplateApplyToApp(
 @Composable
 private fun AppliedTemplateCard(
     template: Template,
+    onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
     val context = LocalContext.current
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -270,7 +275,7 @@ private fun AppliedTemplateCard(
             IconButton(onClick = onRemove) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "Remove",
+                    contentDescription = stringResource(R.string.remove_from_template),
                     tint = MaterialTheme.colorScheme.error,
                 )
             }

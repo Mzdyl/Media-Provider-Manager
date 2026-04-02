@@ -76,6 +76,17 @@ fun AppNavHost(
                 onCreateTemplate = {
                     navController.navigate(AppRoute.CreateTemplate())
                 },
+                onEditTemplate = { template ->
+                    navController.navigate(
+                        AppRoute.CreateTemplate(
+                            templateName = template.templateName,
+                            hookOperation = template.hookOperation,
+                            packageNames = template.applyToApp,
+                            permittedMediaTypes = template.permittedMediaTypes?.map { it.toString() },
+                            filterPaths = template.filterPath,
+                        )
+                    )
+                },
                 binderViewModel = binderViewModel,
             )
         }
