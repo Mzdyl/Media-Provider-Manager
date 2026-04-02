@@ -1,20 +1,19 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply plugin: 'androidx.navigation.safeargs.kotlin'
-apply plugin: 'com.google.devtools.ksp'
-apply plugin: 'dagger.hilt.android.plugin'
+plugins {
+    id 'com.android.application'
+    id 'com.google.devtools.ksp'
+    id 'com.google.dagger.hilt.android'
+    id 'androidx.navigation.safeargs.kotlin'
+}
 
 def gitCommitCount = Integer.parseInt('git rev-list --count HEAD'.execute([], project.rootDir).text.trim())
-def sdk = 36
 
 android {
-    compileSdk sdk
-    buildToolsVersion = '36.0.0'
+    compileSdk = 36
 
     defaultConfig {
         applicationId 'me.gm.cleaner.plugin'
         minSdk 29
-        targetSdk sdk
+        targetSdk = 36
         versionCode gitCommitCount
         versionName 'beta12'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
@@ -36,11 +35,6 @@ android {
             }
         }
     }
-    applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            outputFileName = "Media Provider Manager_${defaultConfig.versionName}-${variant.buildType.name}.apk"
-        }
-    }
     buildTypes {
         release {
             minifyEnabled true
@@ -58,9 +52,7 @@ android {
     buildFeatures {
         aidl true
         viewBinding true
-    }
-    kotlinOptions {
-        jvmTarget = '17'
+        buildConfig true
     }
     lint {
         checkDependencies true
@@ -109,7 +101,7 @@ dependencies {
     implementation "me.zhanghai.android.appiconloader:appiconloader:$appIconLoaderVersion"
     implementation "me.zhanghai.android.appiconloader:appiconloader-glide:$appIconLoaderVersion"
     implementation 'me.zhanghai.android.fastscroll:library:1.3.0'
-    def kotlinxCoroutinesVersion = '1.8.0'
+    def kotlinxCoroutinesVersion = '1.10.1'
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinxCoroutinesVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion"
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
