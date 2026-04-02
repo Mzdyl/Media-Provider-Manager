@@ -29,7 +29,7 @@ import me.gm.cleaner.plugin.R
 abstract class BaseActivity : AppCompatActivity() {
     lateinit var appBarLayout: AppBarLayout
 
-    override fun setContentView(view: View) {
+    override fun setContentView(view: View?) {
         super.setContentView(view)
         appBarLayout = findViewById(R.id.toolbar_container)
         val toolbar: Toolbar = findViewById(R.id.toolbar)
