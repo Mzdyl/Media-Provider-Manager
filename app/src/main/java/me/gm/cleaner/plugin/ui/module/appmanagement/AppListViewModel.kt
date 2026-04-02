@@ -108,6 +108,9 @@ class AppListViewModel(
     ) {
         viewModelScope.launch {
             _appsFlow.value = AppListState.Loading(0)
+            while (!binderViewModel.pingBinder()) {
+                kotlinx.coroutines.delay(500)
+            }
             val list = AppListLoader().load(
                 binderViewModel, getApplication<Application>().packageManager, l
             )

@@ -89,11 +89,21 @@ fun UsageRecordScreen(
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    LaunchedEffect(viewModel, binderViewModel) {
+        while (!binderViewModel.pingBinder()) {
+            kotlinx.coroutines.delay(500)
+        }
+        viewModel.reload()
+    }
+
     if (showDatePicker) {
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showDatePicker = false }) {
+                androidx.compose.material3.TextButton(onClick = {
+                    showDatePicker = false
+                    viewModel.reload()
+                }) {
                     Text("OK")
                 }
             },

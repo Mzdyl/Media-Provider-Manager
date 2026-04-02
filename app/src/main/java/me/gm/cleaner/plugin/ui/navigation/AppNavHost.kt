@@ -30,6 +30,9 @@ fun AppNavHost(
     binderViewModel: BinderViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(binderViewModel) {
+        while (!binderViewModel.pingBinder()) {
+            kotlinx.coroutines.delay(500)
+        }
         binderViewModel.readTemplateSp()
         binderViewModel.readRootSp()
     }
