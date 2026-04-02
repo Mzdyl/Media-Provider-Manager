@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +59,7 @@ fun TemplatesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateTemplate) {
+            FloatingActionButton(onClick = onCreateTemplate, containerColor = MaterialTheme.colorScheme.primary) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_template_title))
             }
         },
@@ -95,26 +97,40 @@ private fun TemplateItem(
     template: Template,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = template.templateName,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = "${template.hookOperation.size} operation(s), ${template.applyToApp?.size ?: 0} app(s)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = template.templateName,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Row(modifier = Modifier.padding(top = 6.dp)) {
+                    template.hookOperation.forEach { op ->
+                        androidx.compose.material3.AssistChip(
+                            onClick = { /* no-op */ },
+                            label = { Text(op.capitalize()) },
+                            modifier = Modifier.padding(end = 6.dp),
+                        )
+                    }
+                }
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowForwardIos,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Icon(
-            imageVector = Icons.Default.ArrowForwardIos,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

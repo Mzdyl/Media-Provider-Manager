@@ -4,11 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
@@ -37,9 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -209,19 +215,38 @@ private fun DrawerHeader(
         isActive = binderViewModel.pingBinder()
     }
 
-    Column(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge,
+        Image(
+            painter = painterResource(R.drawable.ic_outline_apps_24),
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
         )
-        Text(
-            text = if (isActive) context.getString(R.string.active) else context.getString(R.string.not_active),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-        )
-        Spacer(modifier = Modifier.padding(top = 8.dp))
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val statusText = if (isActive) stringResource(R.string.active) else stringResource(R.string.not_active)
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.padding(start = 8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            if (isActive) androidx.compose.ui.graphics.Color(0xFF00C853) else androidx.compose.ui.graphics.Color(0xFFD50000),
+                            androidx.compose.foundation.shape.CircleShape,
+                        )
+                )
+            }
+        }
         HorizontalDivider()
     }
 }

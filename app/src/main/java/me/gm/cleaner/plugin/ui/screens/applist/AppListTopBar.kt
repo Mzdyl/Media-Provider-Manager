@@ -5,6 +5,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Checkbox
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,7 +49,7 @@ fun AppListTopBar(
             IconButton(onClick = onSearchToggle) {
                 Icon(Icons.Default.Search, contentDescription = stringResource(android.R.string.search_go))
             }
-            if (isSearching) {
+            AnimatedVisibility(visible = isSearching, enter = fadeIn(), exit = fadeOut()) {
                 androidx.compose.material3.TextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,

@@ -4,13 +4,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ fun SettingsScreen(
                 title = stringResource(R.string.reject_nonstandard_dir_title),
                 summary = stringResource(R.string.reject_nonstandard_dir_summary),
                 checked = prefs.optBoolean("reject_nonstandard_dir", true),
+                icon = Icons.Default.Settings,
                 enabled = false,
                 onCheckedChange = {},
             )
@@ -68,6 +71,7 @@ fun SettingsScreen(
                 title = stringResource(R.string.usage_record_title),
                 summary = stringResource(R.string.usage_record_summary),
                 checked = usageRecord,
+                icon = Icons.Default.Settings,
                 onCheckedChange = { newValue ->
                     usageRecord = newValue
                     val updated = JSONObject(prefs.toString())
@@ -127,12 +131,16 @@ private fun SettingsSwitchItem(
     checked: Boolean,
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,

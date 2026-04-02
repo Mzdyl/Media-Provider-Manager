@@ -19,6 +19,8 @@ package me.gm.cleaner.plugin.ui.screens.about
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,8 +55,9 @@ fun AboutScreen(
     var readmeContent by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var reloadKey by remember { mutableStateOf(0) }
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, reloadKey) {
         try {
             val result = viewModel.getRawReadmeAsync().await()
             readmeContent = result.getOrThrow()
@@ -84,11 +87,22 @@ fun AboutScreen(
                 }
             }
             errorMessage != null -> {
-                Text(
-                    text = stringResource(R.string.about_load_error, errorMessage!!),
-                    modifier = Modifier.padding(paddingValues).padding(16.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                    Text(
+                        text = stringResource(R.string.about_load_error, errorMessage!!),
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    androidx.compose.material3.TextButton(onClick = { reloadKey++ }) {
+                        Text(text = "Retry")
+                    }
+                }
             }
             readmeContent != null -> {
                 AndroidView(

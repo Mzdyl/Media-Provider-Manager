@@ -130,48 +130,44 @@ fun CreateTemplateScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        if (name.isBlank()) {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Template name is required")
-                            }
-                            return@IconButton
+                IconButton(onClick = {
+                    val canSave = name.isNotBlank() && selectedOperations.isNotEmpty()
+                    if (!canSave) {
+                        // Show lightweight feedback
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Please provide a name and at least one operation")
                         }
-                        if (selectedOperations.isEmpty()) {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("At least one operation is required")
-                            }
-                            return@IconButton
-                        }
-
-                        // Check for duplicate name (only when creating new or renaming)
-                        val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
-                        val nameConflict = existingTemplates.any {
-                            it.templateName == name && it.templateName != templateName
-                        }
-                        if (nameConflict) {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Template name already exists")
-                            }
-                            return@IconButton
-                        }
-
-                        val template = Template(
-                            templateName = name,
-                            hookOperation = selectedOperations.toList(),
-                            applyToApp = selectedPackages.toList().ifEmpty { null },
-                            permittedMediaTypes = selectedMediaTypes.toList().ifEmpty { null },
-                            filterPath = null,
-                        )
-
-                        val json = Template.GSON.toJson(
-                            existingTemplates.filterNot { it.templateName == templateName } + template
-                        )
-                        binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
-                        onSave()
-                    }) {
-                        Icon(Icons.Default.Save, contentDescription = stringResource(R.string.save))
+                        return@IconButton
                     }
+
+                    // Check for duplicate name (only when creating new or renaming)
+                    val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
+                    val nameConflict = existingTemplates.any {
+                        it.templateName == name && it.templateName != templateName
+                    }
+                    if (nameConflict) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Template name already exists")
+                        }
+                        return@IconButton
+                    }
+
+                    val template = Template(
+                        templateName = name,
+                        hookOperation = selectedOperations.toList(),
+                        applyToApp = selectedPackages.toList().ifEmpty { null },
+                        permittedMediaTypes = selectedMediaTypes.toList().ifEmpty { null },
+                        filterPath = null,
+                    )
+
+                    val json = Template.GSON.toJson(
+                        existingTemplates.filterNot { it.templateName == templateName } + template
+                    )
+                    binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
+                    onSave()
+                }) {
+                    Icon(Icons.Default.Save, contentDescription = stringResource(R.string.save))
+                }
                 },
             )
         },
@@ -317,13 +313,27 @@ private fun AppPickerDialog(
     var tempSelected by remember { mutableStateOf(selectedPackages) }
 
     androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
+        // Search field for app picker
+    onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.apply_to_app_title)) },
         text = {
+            var query by remember { mutableStateOf("") }
             Column(
                 modifier = Modifier.fillMaxWidth().height(400.dp).verticalScroll(rememberScrollState()),
             ) {
-                installedPackages.forEach { pi ->
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text(stringResource(R.string.search)) },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    singleLine = true,
+                )
+                val filteredPackages = installedPackages.filter { pi ->
+                    val label = pi.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: pi.packageName
+                    val pkg = pi.packageName
+                    label.contains(query, ignoreCase = true) || pkg.contains(query, ignoreCase = true)
+                }
+                filteredPackages.forEach { pi ->
                     val packageName = pi.packageName
                     val label = pi.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: packageName
                     Row(

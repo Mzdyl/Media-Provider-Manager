@@ -7,6 +7,7 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
@@ -28,6 +29,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -146,10 +148,10 @@ fun UsageRecordScreen(
                     IconButton(onClick = {
                         showDatePicker = true
                     }) {
-                        Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.pick_date_title))
+                        Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.pick_date_title))
                     }
                     IconButton(onClick = { isSearching = !isSearching }) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
                     }
                     if (isSearching) {
                         TextField(
@@ -164,7 +166,7 @@ fun UsageRecordScreen(
                         )
                     }
                     IconButton(onClick = { showFilterMenu = true }) {
-                        Icon(Icons.Default.Tune, contentDescription = "Filter")
+                        Icon(Icons.Filled.Tune, contentDescription = "Filter")
                     }
                     DropdownMenu(
                         expanded = showFilterMenu,
@@ -201,7 +203,7 @@ fun UsageRecordScreen(
                                 viewModel.reload()
                                 showFilterMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.ClearAll, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Filled.ClearAll, contentDescription = null) },
                         )
                     }
                 },
@@ -225,12 +227,28 @@ fun UsageRecordScreen(
                         record.label?.contains(searchQuery, ignoreCase = true) == true ||
                         record.packageName.contains(searchQuery, ignoreCase = true)
                 }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                ) {
-                    items(filteredList, key = { it.timeMillis }) { record ->
-                        UsageRecordItem(record = record)
+                if (filteredList.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "No usage records found",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                    ) {
+                        items(filteredList, key = { it.timeMillis }) { record ->
+                            UsageRecordItem(record = record)
+                        }
                     }
                 }
             }
@@ -253,6 +271,12 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
             DateUtils.FORMAT_ABBREV_ALL or DateUtils.FORMAT_SHOW_TIME,
     )
     val isIntercepted = record.intercepted.any { it }
+    val operationColor = when (record.operation) {
+        OP_QUERY -> MaterialTheme.colorScheme.primary
+        OP_INSERT -> Color(0xFF2E7D32)
+        OP_DELETE -> Color(0xFFD32F2F)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     val operationText: androidx.compose.ui.text.AnnotatedString = if (isIntercepted) {
         buildAnnotatedString {
             pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
@@ -278,7 +302,7 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
                 Text(
                     text = operationText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = operationColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
