@@ -214,7 +214,8 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
 
             /** INTERCEPT */
             if (filterIndices.isEmpty()) {
-                // All items filtered out, cursor will be closed in finally
+                param.result = FilteredCursor.createUsingFilter(c, intArrayOf())
+                cursorHandled = true // Cursor is now owned by FilteredCursor
             } else {
                 c.moveToFirst()
                 param.result = FilteredCursor.createUsingFilter(c, filterIndices)
