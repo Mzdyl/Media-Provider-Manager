@@ -128,4 +128,5 @@
     <string name="restore_ok">規則還原成功</string>
     <string name="restore_fail_invalid">還原失敗：剪貼簿中沒有有效的 JSON 規則</string>
     <string name="about_load_error">載入 README 失敗：%s</string>
+    <string name="hide_system_apps">隱藏系統應用</string>
 </resources>

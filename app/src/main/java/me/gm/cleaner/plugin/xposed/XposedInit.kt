@@ -126,6 +126,7 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
     }
 
     @Throws(Throwable::class)
+    @Suppress("DEPRECATION")
     override fun initZygote(startupParam: IXposedHookZygoteInit.StartupParam) {
         val assetManager = AssetManager::class.java.newInstance()
         XposedHelpers.callMethod(assetManager, "addAssetPath", startupParam.modulePath)

@@ -12,6 +12,13 @@ import kotlinx.coroutines.withContext
 
 object MediaStoreCompat {
 
+    @Suppress("DEPRECATION")
+    private fun Fragment.launchIntentSenderCompat(intentSender: IntentSender) {
+        startIntentSenderForResult(
+            intentSender, DELETE_PERMISSION_REQUEST, null, 0, 0, 0, null
+        )
+    }
+
     // @see https://developer.android.com/training/data-storage/shared/media#remove-item
     suspend fun delete(fragment: Fragment, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -32,9 +39,8 @@ object MediaStoreCompat {
                 val recoverableSecurityException =
                     securityException as? RecoverableSecurityException
                         ?: throw securityException
-                fragment.startIntentSenderForResult(
-                    recoverableSecurityException.userAction.actionIntent.intentSender,
-                    DELETE_PERMISSION_REQUEST, null, 0, 0, 0, null
+                fragment.launchIntentSenderCompat(
+                    recoverableSecurityException.userAction.actionIntent.intentSender
                 )
                 return@withContext false
             } else {
@@ -54,9 +60,7 @@ object MediaStoreCompat {
             val pendingIntent = MediaStore.createDeleteRequest(
                 fragment.requireContext().contentResolver, uris
             )
-            fragment.startIntentSenderForResult(
-                pendingIntent.intentSender, DELETE_PERMISSION_REQUEST, null, 0, 0, 0, null
-            )
+            fragment.launchIntentSenderCompat(pendingIntent.intentSender)
         }
     }
 

@@ -29,7 +29,10 @@ class FlowableSharedPreferences<T>(
     @Suppress("UNCHECKED_CAST")
     private fun load(): T = when (defaultValue) {
         is String -> preferences.getString(key, defaultValue) as T
-        is Set<*> -> preferences.getStringSet(key, defaultValue as Set<String>) as T
+        is Set<*> -> {
+            val defaultStringSet = defaultValue.filterIsInstance<String>().toSet()
+            preferences.getStringSet(key, defaultStringSet)?.toSet() as T
+        }
         is Int -> preferences.getInt(key, defaultValue) as T
         is Long -> preferences.getLong(key, defaultValue) as T
         is Float -> preferences.getFloat(key, defaultValue) as T
@@ -45,7 +48,7 @@ class FlowableSharedPreferences<T>(
             preferences.edit {
                 when (value) {
                     is String -> putString(key, value as String)
-                    is Set<*> -> putStringSet(key, value as Set<String>)
+                    is Set<*> -> putStringSet(key, value.filterIsInstance<String>().toSet())
                     is Int -> putInt(key, value as Int)
                     is Long -> putLong(key, value as Long)
                     is Float -> putFloat(key, value as Float)

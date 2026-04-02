@@ -94,7 +94,7 @@ fun AppListTopBar(
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.menu_hide_system_app_title)) },
+                        text = { Text(stringResource(R.string.hide_system_apps)) },
                         onClick = {
                             RootPreferences.isHideSystemAppFlowable.value = !hideSystemApp
                             showSortMenu = false

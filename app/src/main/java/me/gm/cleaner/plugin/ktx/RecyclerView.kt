@@ -22,6 +22,8 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.forEach
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
@@ -183,14 +185,15 @@ fun View.fitsSystemWindowInsets(fastScroller: FastScroller? = null) {
     val paddingTop = paddingTop
     val paddingRight = paddingRight
     val paddingBottom = paddingBottom
-    setOnApplyWindowInsetsListener { view, insets ->
+    ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+        val systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
         view.setPadding(
-            paddingLeft, paddingTop + insets.systemWindowInsetTop,
-            paddingRight, paddingBottom + insets.systemWindowInsetBottom
+            paddingLeft, paddingTop + systemBarsInsets.top,
+            paddingRight, paddingBottom + systemBarsInsets.bottom
         )
         fastScroller?.setPadding(
-            0, paddingTop + insets.systemWindowInsetTop,
-            0, paddingBottom + insets.systemWindowInsetBottom
+            0, paddingTop + systemBarsInsets.top,
+            0, paddingBottom + systemBarsInsets.bottom
         )
         insets
     }

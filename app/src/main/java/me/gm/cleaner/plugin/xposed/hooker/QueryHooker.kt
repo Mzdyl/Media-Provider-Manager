@@ -48,7 +48,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         }
         /** ARGUMENTS */
         val uri = param.args[0] as Uri
-        val projection = param.args[1] as? Array<String>?
+        val projection = (param.args[1] as? Array<*>)?.mapNotNull { it as? String }?.toTypedArray()
         val queryArgs = param.args[2] as? Bundle ?: Bundle.EMPTY
         val signal = param.args[3] as? CancellationSignal
 

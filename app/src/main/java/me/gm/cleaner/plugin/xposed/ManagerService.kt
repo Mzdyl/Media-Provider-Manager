@@ -215,7 +215,9 @@ abstract class ManagerService : IManagerService.Stub() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) flags.toLong() else flags,
             userId
         )
-        val list = XposedHelpers.callMethod(parceledListSlice, "getList") as List<PackageInfo>
+        val list = (XposedHelpers.callMethod(parceledListSlice, "getList") as? List<*>)
+            ?.filterIsInstance<PackageInfo>()
+            .orEmpty()
         return ParceledListSlice(list)
     }
 

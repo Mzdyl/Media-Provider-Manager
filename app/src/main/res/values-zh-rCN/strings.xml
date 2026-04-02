@@ -133,6 +133,7 @@
     <string name="retry">重试</string>
     <string name="sort">排序</string>
     <string name="filter">筛选</string>
+    <string name="hide_system_apps">隐藏系统应用</string>
     <string name="module_version">模块 v%d</string>
     <string name="no_apps_found">没有找到应用</string>
     <string name="no_usage_records_found">没有找到使用记录</string>

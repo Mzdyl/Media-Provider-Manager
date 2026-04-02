@@ -76,6 +76,8 @@ import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.screens.templating.hookOperationLabel
 import me.gm.cleaner.plugin.ui.screens.templating.mediaTypeLabel
 
+private const val MEDIA_TYPE_PLAYLIST = 4
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateTemplateScreen(
@@ -109,7 +111,7 @@ fun CreateTemplateScreen(
 
     val hookOperations = listOf("query", "insert")
     val mediaTypes = listOf(
-        FileColumns.MEDIA_TYPE_PLAYLIST,
+        MEDIA_TYPE_PLAYLIST,
         FileColumns.MEDIA_TYPE_SUBTITLE,
         FileColumns.MEDIA_TYPE_AUDIO,
         FileColumns.MEDIA_TYPE_VIDEO,

@@ -62,7 +62,8 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                     QUERY_ARG_SQL_SELECTION_ARGS
                 )
 
-                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> param.args[2] as? Array<String>
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q ->
+                    (param.args[2] as? Array<*>)?.mapNotNull { it as? String }?.toTypedArray()
                 else -> throw UnsupportedOperationException()
             }
         } catch (t: Throwable) {
