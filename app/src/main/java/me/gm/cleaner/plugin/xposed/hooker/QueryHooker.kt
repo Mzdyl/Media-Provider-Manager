@@ -204,8 +204,8 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             }
 
             // Batch apply templates once for all items
-            val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-            val shouldIntercept = service.ruleSp.templates.applyTemplates(templates, data, mimeType)
+            val filteredTemplates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
+            val shouldIntercept = service.ruleSp.templates.applyTemplates(filteredTemplates, data, mimeType)
             
             // Compute filter indices (items NOT intercepted)
             val filterIndices = shouldIntercept.mapIndexedNotNull { index, intercepted ->

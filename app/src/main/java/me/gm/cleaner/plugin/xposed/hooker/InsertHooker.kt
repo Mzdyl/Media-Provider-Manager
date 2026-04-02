@@ -109,9 +109,9 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         }
 
         /** INTERCEPT */
-        val templates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
+        val filteredTemplates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
         val shouldIntercept = service.ruleSp.templates
-            .applyTemplates(templates, listOf(data), listOf(mimeType)).first()
+            .applyTemplates(filteredTemplates, listOf(data), listOf(mimeType)).first()
         if (shouldIntercept) {
             param.result = null
         }

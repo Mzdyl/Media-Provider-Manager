@@ -14,31 +14,20 @@
  * limitations under the License.
  */
 
-package me.gm.cleaner.plugin.xposed;
+package me.gm.cleaner.plugin.xposed
 
-import java.io.File;
+import me.gm.cleaner.plugin.model.Templates
+import java.io.File
 
-import me.gm.cleaner.plugin.model.Templates;
+class TemplatesJsonFileSpImpl(src: File) : JsonFileSpImpl(src) {
+    @Volatile
+    var templates: Templates = Templates(read())
+        private set
 
-public final class TemplatesJsonFileSpImpl extends JsonFileSpImpl {
-    private volatile Templates templatesCache;
-
-    public TemplatesJsonFileSpImpl(File src) {
-        super(src);
-        templatesCache = new Templates(read());
-    }
-
-    @Override
-    public void write(String what) {
-        super.write(what);
+    override fun write(what: String) {
+        super.write(what)
         // Clear old cache and create new Templates instance
-        if (templatesCache != null) {
-            templatesCache.clearCache();
-        }
-        templatesCache = new Templates(what);
-    }
-
-    public Templates getTemplates() {
-        return templatesCache;
+        templates.clearCache()
+        templates = Templates(what)
     }
 }
