@@ -30,11 +30,18 @@ fun AppNavHost(
     binderViewModel: BinderViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(binderViewModel) {
-        while (!binderViewModel.pingBinder()) {
+        var attempts = 0
+        while (attempts < 20) {
+            if (binderViewModel.pingBinder()) {
+                val templateJson = binderViewModel.readTemplateSp()
+                val rootJson = binderViewModel.readRootSp()
+                if (templateJson != null || rootJson != null) {
+                    break
+                }
+            }
             kotlinx.coroutines.delay(500)
+            attempts++
         }
-        binderViewModel.readTemplateSp()
-        binderViewModel.readRootSp()
     }
 
     val sparseArray by binderViewModel.remoteSpCacheLiveData.observeAsState()
