@@ -48,6 +48,7 @@ data class MediaProviderRecord(
             if (cursor.count == 0) {
                 return emptyList()
             }
+            val idColumn = cursor.getColumnIndex("id")
             val timeMillisColumn = cursor.getColumnIndexOrThrow("time_millis")
             val packageNameColumn = cursor.getColumnIndexOrThrow("package_name")
             val matchColumn = cursor.getColumnIndexOrThrow("match")
@@ -59,7 +60,7 @@ data class MediaProviderRecord(
             val records = mutableListOf<MediaProviderRecord>()
             while (cursor.moveToNext()) {
                 records += MediaProviderRecord(
-                    0,
+                    if (idColumn != -1) cursor.getInt(idColumn) else 0,
                     cursor.getLong(timeMillisColumn),
                     cursor.getString(packageNameColumn),
                     cursor.getInt(matchColumn),

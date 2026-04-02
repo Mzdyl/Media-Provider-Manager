@@ -16,6 +16,10 @@
 
 package me.gm.cleaner.plugin.ui.screens.appdetail
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,7 +37,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -50,15 +56,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
+import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
+import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
+import me.gm.cleaner.plugin.ui.components.SectionHeader
 import me.gm.cleaner.plugin.ui.components.SecondaryTopBar
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.screens.templating.templateFilterPathSummary
@@ -78,7 +90,20 @@ fun AppDetailScreen(
 ) {
     val appTemplates = templates.filter { packageName in (it.applyToApp ?: emptyList()) }
     val availableTemplates = templates.filter { packageName !in (it.applyToApp ?: emptyList()) }
-    var showTemplatePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val packageInfo = remember(packageName, binderViewModel) {
+        binderViewModel.getPackageInfo(packageName)
+    }
+    val usageTimes = remember(packageName, binderViewModel) {
+        listOf(
+            OP_QUERY to R.string.query_times,
+            OP_INSERT to R.string.insert_times,
+            OP_DELETE to R.string.delete_times,
+        ).mapNotNull { (operation, resId) ->
+            val count = binderViewModel.packageUsageTimes(operation, listOf(packageName))
+            if (count == 0) null else context.getString(resId, count)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -96,25 +121,18 @@ fun AppDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Card(
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text(
-                            text = stringResource(R.string.applied_templates_count, appTemplates.size),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = packageName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
+                AppOverviewCard(
+                    packageName = packageName,
+                    label = label,
+                    packageInfo = packageInfo,
+                    usageTimes = usageTimes,
+                )
+            }
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.applied_templates_count, appTemplates.size),
+                    supporting = packageName,
+                )
             }
             if (appTemplates.isEmpty()) {
                 item {
@@ -139,13 +157,7 @@ fun AppDetailScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = {
-                            if (availableTemplates.isEmpty()) {
-                                onCreateTemplate()
-                            } else {
-                                showTemplatePicker = true
-                            }
-                        }),
+                        .clickable(onClick = onCreateTemplate),
                     colors = androidx.compose.material3.CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     ),
@@ -161,33 +173,47 @@ fun AppDetailScreen(
                         )
                         Spacer(modifier = Modifier.padding(start = 8.dp))
                         Text(
-                            text = if (availableTemplates.isEmpty()) {
-                                stringResource(R.string.create_new_template)
-                            } else {
-                                stringResource(R.string.add_to_template)
-                            },
+                            text = stringResource(R.string.create_new_template),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                 }
             }
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.add_to_template),
+                    supporting = if (availableTemplates.isEmpty()) {
+                        stringResource(R.string.no_templates)
+                    } else {
+                        stringResource(R.string.template_count, availableTemplates.size)
+                    },
+                )
+            }
+            if (availableTemplates.isEmpty()) {
+                item {
+                    EmptyStateCard(
+                        title = stringResource(R.string.no_templates),
+                        subtitle = stringResource(R.string.create_template_title),
+                        icon = Icons.Default.Add,
+                    )
+                }
+            } else {
+                items(availableTemplates, key = { it.templateName }) { template ->
+                    AvailableTemplateCard(
+                        template = template,
+                        onAdd = {
+                            updateTemplateApplyToApp(
+                                binderViewModel = binderViewModel,
+                                template = template,
+                                packageName = packageName,
+                                remove = false,
+                            )
+                        },
+                    )
+                }
+            }
         }
-    }
-
-    if (showTemplatePicker) {
-        TemplatePickerDialog(
-            templates = availableTemplates,
-            onDismiss = { showTemplatePicker = false },
-            onTemplateSelected = { template ->
-                updateTemplateApplyToApp(binderViewModel, template, packageName, remove = false)
-                showTemplatePicker = false
-            },
-            onCreateNew = {
-                showTemplatePicker = false
-                onCreateTemplate()
-            },
-        )
     }
 }
 
@@ -217,6 +243,121 @@ private fun updateTemplateApplyToApp(
 
     val json = me.gm.cleaner.plugin.model.Template.GSON.toJson(existingTemplates)
     binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
+}
+
+@Composable
+private fun AppOverviewCard(
+    packageName: String,
+    label: String?,
+    packageInfo: android.content.pm.PackageInfo?,
+    usageTimes: List<String>,
+) {
+    val context = LocalContext.current
+    Card(
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppPackageIcon(
+                    packageInfo = packageInfo,
+                    modifier = Modifier.size(52.dp),
+                )
+                Column(
+                    modifier = Modifier
+                        .padding(start = 14.dp)
+                        .weight(1f),
+                ) {
+                    Text(
+                        text = buildString {
+                            append(label ?: packageName)
+                            packageInfo?.versionName?.let {
+                                append(" ")
+                                append(it)
+                            }
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Text(
+                        text = packageName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                AssistChip(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", packageName, null)
+                        }
+                        context.startActivity(intent)
+                    },
+                    label = { Text(stringResource(R.string.app_info)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                        )
+                    },
+                )
+            }
+            packageInfo?.applicationInfo?.targetSdkVersion?.let {
+                Text(
+                    text = "SDK $it",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+            if (usageTimes.isNotEmpty()) {
+                Text(
+                    text = usageTimes.joinToString(stringResource(R.string.delimiter)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppPackageIcon(
+    packageInfo: android.content.pm.PackageInfo?,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val icon = remember(packageInfo?.packageName) {
+        try {
+            packageInfo?.applicationInfo?.loadIcon(context.packageManager)
+        } catch (_: Exception) {
+            null
+        }
+    }
+    if (icon != null) {
+        val bitmap = remember(icon) {
+            android.graphics.Bitmap.createBitmap(
+                icon.intrinsicWidth.coerceAtLeast(1),
+                icon.intrinsicHeight.coerceAtLeast(1),
+                android.graphics.Bitmap.Config.ARGB_8888,
+            ).also { bitmap ->
+                icon.setBounds(0, 0, bitmap.width, bitmap.height)
+                icon.draw(android.graphics.Canvas(bitmap))
+            }
+        }
+        Image(
+            painter = BitmapPainter(bitmap.asImageBitmap()),
+            contentDescription = null,
+            modifier = modifier,
+        )
+    } else {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            modifier = modifier,
+        )
+    }
 }
 
 @Composable
@@ -284,63 +425,43 @@ private fun AppliedTemplateCard(
 }
 
 @Composable
-private fun TemplatePickerDialog(
-    templates: List<Template>,
-    onDismiss: () -> Unit,
-    onTemplateSelected: (Template) -> Unit,
-    onCreateNew: () -> Unit,
+private fun AvailableTemplateCard(
+    template: Template,
+    onAdd: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_to_template)) },
-        text = {
-            LazyColumn {
-                items(templates, key = { it.templateName }) { template ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onTemplateSelected(template) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = template.templateName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-                item {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onCreateNew() }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.create_new_template),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAdd),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
     )
+    {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = template.templateName,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = templateOperationSummary(context, template),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
 }

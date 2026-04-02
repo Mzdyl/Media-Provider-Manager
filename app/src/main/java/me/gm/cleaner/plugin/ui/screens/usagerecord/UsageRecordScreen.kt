@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Date
 import java.util.Locale
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
@@ -98,6 +100,18 @@ fun UsageRecordScreen(
             kotlinx.coroutines.delay(500)
         }
         viewModel.reload()
+    }
+
+    DisposableEffect(binderViewModel) {
+        val observer = object : IMediaChangeObserver.Stub() {
+            override fun onChange() {
+                viewModel.reload()
+            }
+        }
+        binderViewModel.registerMediaChangeObserver(observer)
+        onDispose {
+            binderViewModel.unregisterMediaChangeObserver(observer)
+        }
     }
 
     if (showDatePicker) {
@@ -282,7 +296,16 @@ fun UsageRecordScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(filteredList, key = { it.timeMillis }) { record ->
+                        items(
+                            items = filteredList,
+                            key = { record ->
+                                if (record.id != 0) {
+                                    record.id
+                                } else {
+                                    "${record.timeMillis}:${record.packageName}:${record.operation}:${record.match}:${record.data.firstOrNull().orEmpty()}"
+                                }
+                            },
+                        ) { record ->
                             UsageRecordItem(record = record)
                         }
                     }
