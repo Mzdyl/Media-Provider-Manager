@@ -67,9 +67,7 @@ fun AppNavHost(
                 onCreateTemplate = {
                     navController.navigate(AppRoute.CreateTemplate())
                 },
-                onToggleTemplate = { template, add ->
-                    // TODO: implement toggle
-                },
+                binderViewModel = binderViewModel,
             )
         }
         composable<AppRoute.UsageRecord> {

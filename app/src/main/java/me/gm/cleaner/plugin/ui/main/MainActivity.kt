@@ -113,7 +113,8 @@ fun MainScreen() {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                DrawerHeader()
+                val binderViewModel: me.gm.cleaner.plugin.ui.module.BinderViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+                DrawerHeader(binderViewModel = binderViewModel)
                 drawerItems.forEach { item ->
                     if (item.section != null) {
                         Text(
@@ -198,16 +199,14 @@ fun MainScreen() {
 }
 
 @Composable
-private fun DrawerHeader() {
+private fun DrawerHeader(
+    binderViewModel: me.gm.cleaner.plugin.ui.module.BinderViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+) {
     val context = LocalContext.current
-    var statusText by remember { mutableStateOf(context.getString(R.string.loading)) }
+    var isActive by remember { mutableStateOf(false) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        try {
-            statusText = context.getString(R.string.not_active)
-        } catch (_: Exception) {
-            statusText = context.getString(R.string.not_active)
-        }
+    androidx.compose.runtime.LaunchedEffect(binderViewModel) {
+        isActive = binderViewModel.pingBinder()
     }
 
     Column(
@@ -218,9 +217,9 @@ private fun DrawerHeader() {
             style = MaterialTheme.typography.titleLarge,
         )
         Text(
-            text = statusText,
+            text = if (isActive) context.getString(R.string.active) else context.getString(R.string.not_active),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
         )
         Spacer(modifier = Modifier.padding(top = 8.dp))
         HorizontalDivider()
