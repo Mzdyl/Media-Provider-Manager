@@ -116,6 +116,14 @@ fun UsageRecordScreen(
         }
     }
 
+    val selectedDateStr = remember(viewModel.selectedTime) {
+        DateFormat.getInstanceForSkeleton(
+            DateFormat.YEAR_ABBR_MONTH_DAY, Locale.getDefault()
+        ).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }.format(Date(viewModel.selectedTime))
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -123,19 +131,11 @@ fun UsageRecordScreen(
                 title = {
                     Column {
                         Text(stringResource(R.string.usage_record))
-                        if (recordsState is UsageRecordState.Done) {
-                            val calendar = viewModel.calendar
-                            val dateStr = DateFormat.getInstanceForSkeleton(
-                                DateFormat.YEAR_ABBR_MONTH_DAY, Locale.getDefault()
-                            ).apply {
-                                timeZone = TimeZone.getTimeZone("UTC")
-                            }.format(Date(calendar.timeInMillis))
-                            Text(
-                                text = dateStr,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Text(
+                            text = selectedDateStr,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 },
                 actions = {

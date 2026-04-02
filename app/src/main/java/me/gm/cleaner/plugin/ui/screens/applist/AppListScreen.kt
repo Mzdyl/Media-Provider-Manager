@@ -134,6 +134,13 @@ private fun AppListItem(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (app.ruleCount > 0) {
+            androidx.compose.material3.AssistChip(
+                onClick = onClick,
+                label = { Text("${app.ruleCount}", style = MaterialTheme.typography.labelMedium) },
+                modifier = Modifier.padding(end = 8.dp),
+            )
+        }
     }
 }
 
