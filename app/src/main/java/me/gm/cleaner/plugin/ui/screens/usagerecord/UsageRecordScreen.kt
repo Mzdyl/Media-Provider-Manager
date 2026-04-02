@@ -1,6 +1,9 @@
 package me.gm.cleaner.plugin.ui.screens.usagerecord
 
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.icu.text.DateFormat
 import android.icu.util.TimeZone
 import android.text.format.DateUtils
@@ -14,8 +17,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -23,6 +29,7 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -37,6 +44,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
@@ -83,6 +94,7 @@ fun UsageRecordScreen(
     onOpenDrawer: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val viewModel = remember(binderViewModel) {
         UsageRecordViewModel(
             context.applicationContext as Application,
@@ -94,6 +106,8 @@ fun UsageRecordScreen(
     var isSearching by remember { mutableStateOf(false) }
     var showFilterMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var detailRecord by remember { mutableStateOf<MediaProviderRecord?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel, binderViewModel) {
         while (!binderViewModel.pingBinder()) {
@@ -254,6 +268,7 @@ fun UsageRecordScreen(
                 }
             }
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { paddingValues ->
         when (val state = recordsState) {
             null, UsageRecordState.Loading -> {
@@ -306,17 +321,38 @@ fun UsageRecordScreen(
                                 }
                             },
                         ) { record ->
-                            UsageRecordItem(record = record)
+                            UsageRecordItem(
+                                record = record,
+                                onClick = { detailRecord = record },
+                            )
                         }
                     }
                 }
             }
         }
     }
+
+    detailRecord?.let { record ->
+        UsageRecordDetailDialog(
+            record = record,
+            onDismiss = { detailRecord = null },
+            onCopy = { data ->
+                val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboardManager.setPrimaryClip(ClipData.newPlainText(null, data))
+                detailRecord = null
+                scope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.copied, data))
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun UsageRecordItem(record: MediaProviderRecord) {
+private fun UsageRecordItem(
+    record: MediaProviderRecord,
+    onClick: () -> Unit,
+) {
     val context = LocalContext.current
     val operationLabel = when (record.operation) {
         OP_QUERY -> stringResource(R.string.queried_at)
@@ -350,7 +386,7 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { },
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -401,6 +437,56 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
             }
         }
     }
+}
+
+@Composable
+private fun UsageRecordDetailDialog(
+    record: MediaProviderRecord,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = record.label ?: record.packageName)
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                record.data.forEachIndexed { index, data ->
+                    val itemText = if (record.intercepted.getOrNull(index) == true) {
+                        buildAnnotatedString {
+                            pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
+                            append(data)
+                            pop()
+                        }
+                    } else {
+                        buildAnnotatedString { append(data) }
+                    }
+                    Text(
+                        text = itemText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onCopy(data) }
+                            .padding(vertical = 12.dp),
+                    )
+                    if (index != record.data.lastIndex) {
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable

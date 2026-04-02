@@ -73,7 +73,6 @@ import me.gm.cleaner.plugin.ui.components.PreferenceGroup
 import me.gm.cleaner.plugin.ui.components.SecondaryTopBar
 import me.gm.cleaner.plugin.ui.components.SectionHeader
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
-import me.gm.cleaner.plugin.ui.module.settings.preference.treeUriToFile
 import me.gm.cleaner.plugin.ui.screens.templating.hookOperationLabel
 import me.gm.cleaner.plugin.ui.screens.templating.mediaTypeLabel
 

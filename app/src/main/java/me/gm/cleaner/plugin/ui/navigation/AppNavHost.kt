@@ -21,6 +21,7 @@ import me.gm.cleaner.plugin.ui.screens.createtemplate.CreateTemplateScreen
 import me.gm.cleaner.plugin.ui.screens.settings.SettingsScreen
 import me.gm.cleaner.plugin.ui.screens.templates.TemplatesScreen
 import me.gm.cleaner.plugin.ui.screens.usagerecord.UsageRecordScreen
+import me.gm.cleaner.plugin.util.collatorComparator
 
 @Composable
 fun AppNavHost(
@@ -49,7 +50,9 @@ fun AppNavHost(
     val templateJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
     val rootSpJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
     val templateList: List<Template> = remember(templateJson) {
-        runCatching { Templates(templateJson).values }.getOrDefault(emptyList())
+        runCatching {
+            Templates(templateJson).values.sortedWith(collatorComparator { it.templateName })
+        }.getOrDefault(emptyList())
     }
 
     NavHost(

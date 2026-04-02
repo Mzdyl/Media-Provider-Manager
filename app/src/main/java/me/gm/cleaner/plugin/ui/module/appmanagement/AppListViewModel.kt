@@ -65,49 +65,71 @@ class AppListViewModel(
             ruleCountFlow,
         ) { apps, isSearching, queryText, isHideSystemApp, sortBy, ruleCount ->
             when (apps) {
-                is AppListState.Loading -> AppListState.Loading(apps.progress)
-                is AppListState.Done -> {
-                    var sequence = apps.list.asSequence()
-                    if (isHideSystemApp) {
-                        sequence = sequence.filter {
-                            val flags = it.packageInfo.applicationInfo?.flags ?: 0
-                            flags and ApplicationInfo.FLAG_SYSTEM == 0
-                        }
-                    }
-                    if (isSearching) {
-                        sequence = sequence.filter {
-                            it.label.contains(queryText, true) ||
-                                    it.packageInfo.packageName.contains(queryText, true)
-                        }
-                    }
-                    sequence = when (sortBy) {
-                        SORT_BY_APP_NAME -> {
-                            sequence.sortedWith(collatorComparator { it.label })
-                        }
-
-                        SORT_BY_UPDATE_TIME -> sequence.sortedBy {
-                            -it.packageInfo.lastUpdateTime
-                        }
-
-                        else -> throw IllegalArgumentException()
-                    }
-                    if (ruleCount) {
-                        sequence = sequence.sortedBy { -it.ruleCount }
-                    }
-                    AppListState.Done(sequence.toList())
-                }
+                is AppListState.Loading -> AppListState.Loading(
+                    progress = apps.progress,
+                    list = apps.list?.let {
+                        transformList(it, isSearching, queryText, isHideSystemApp, sortBy, ruleCount)
+                    },
+                )
+                is AppListState.Done -> AppListState.Done(
+                    transformList(
+                        apps.list,
+                        isSearching,
+                        queryText,
+                        isHideSystemApp,
+                        sortBy,
+                        ruleCount,
+                    )
+                )
             }
         }
+
+    private fun transformList(
+        list: List<AppListModel>,
+        isSearching: Boolean,
+        queryText: String,
+        isHideSystemApp: Boolean,
+        sortBy: Int,
+        ruleCount: Boolean,
+    ): List<AppListModel> {
+        var sequence = list.asSequence()
+        if (isHideSystemApp) {
+            sequence = sequence.filter {
+                val flags = it.packageInfo.applicationInfo?.flags ?: 0
+                flags and ApplicationInfo.FLAG_SYSTEM == 0
+            }
+        }
+        if (isSearching) {
+            sequence = sequence.filter {
+                it.label.contains(queryText, true) ||
+                    it.packageInfo.packageName.contains(queryText, true)
+            }
+        }
+        sequence = when (sortBy) {
+            SORT_BY_APP_NAME -> sequence.sortedWith(collatorComparator { it.label })
+            SORT_BY_UPDATE_TIME -> sequence.sortedBy { -it.packageInfo.lastUpdateTime }
+            else -> throw IllegalArgumentException()
+        }
+        if (ruleCount) {
+            sequence = sequence.sortedBy { -it.ruleCount }
+        }
+        return sequence.toList()
+    }
+
+    private fun currentVisibleList(): List<AppListModel>? = when (val state = _appsFlow.value) {
+        is AppListState.Done -> state.list
+        is AppListState.Loading -> state.list
+    }
 
     fun load(
         l: AppListLoader.ProgressListener? = object : AppListLoader.ProgressListener {
             override fun onProgress(progress: Int) {
-                _appsFlow.value = AppListState.Loading(progress)
+                _appsFlow.value = AppListState.Loading(progress, currentVisibleList())
             }
         }
     ) {
         viewModelScope.launch {
-            _appsFlow.value = AppListState.Loading(0)
+            _appsFlow.value = AppListState.Loading(0, currentVisibleList())
             while (!binderViewModel.pingBinder()) {
                 kotlinx.coroutines.delay(500)
             }
@@ -124,7 +146,7 @@ class AppListViewModel(
                 val list = AppListLoader().update(
                     (_appsFlow.value as AppListState.Done).list, binderViewModel
                 )
-                _appsFlow.value = AppListState.Loading(0)
+                _appsFlow.value = AppListState.Loading(0, currentVisibleList())
                 _appsFlow.value = AppListState.Done(list)
             }
         }
@@ -153,7 +175,11 @@ class AppListViewModel(
 }
 
 sealed class AppListState {
-    data class Loading(val progress: Int) : AppListState()
+    data class Loading(
+        val progress: Int,
+        val list: List<AppListModel>? = null,
+    ) : AppListState()
+
     data class Done(val list: List<AppListModel>) : AppListState()
 }
 

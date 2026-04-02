@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="applist_fragment" type="id" />
+    <item name="usage_record_fragment" type="id" />
+    <item name="settings_fragment" type="id" />
+    <item name="about_fragment" type="id" />
+</resources>

@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
@@ -69,6 +71,7 @@ fun AppListScreen(
     )
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
 
     Scaffold(
         topBar = {
@@ -77,13 +80,18 @@ fun AppListScreen(
                 searchQuery = searchQuery,
                 isSearching = isSearching,
                 onSearchQueryChange = { searchQuery = it },
-                onSearchToggle = { isSearching = !isSearching },
+                onSearchToggle = {
+                    isSearching = !isSearching
+                    if (!isSearching) {
+                        searchQuery = ""
+                    }
+                },
                 onRefresh = { viewModel.load() },
             )
         },
     ) { paddingValues ->
         when (val state = appsState) {
-            null, is AppListState.Loading -> {
+            null -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -102,74 +110,138 @@ fun AppListScreen(
                 }
             }
 
-            is AppListState.Done -> {
-                val filteredList = state.list.filter { app ->
-                    if (!isSearching || searchQuery.isBlank()) true
-                    else app.label.contains(searchQuery, ignoreCase = true) ||
-                        app.packageInfo.packageName.contains(searchQuery, ignoreCase = true)
-                }
-                if (filteredList.isEmpty()) {
+            is AppListState.Loading -> {
+                if (state.list == null) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(16.dp),
+                            .padding(paddingValues),
                         contentAlignment = Alignment.Center,
                     ) {
-                        EmptyStateCard(
-                            title = stringResource(R.string.no_apps_found),
-                            subtitle = stringResource(R.string.empty_search_hint),
-                            icon = Icons.Outlined.Web,
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                ),
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Web,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    )
-                                    Column(modifier = Modifier.padding(start = 12.dp)) {
-                                        Text(
-                                            text = stringResource(R.string.app_management),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                        Text(
-                                            text = "${filteredList.size} / ${state.list.size}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        items(filteredList, key = { it.packageInfo.packageName }) { app ->
-                            AppListItem(
-                                app = app,
-                                showRuleCount = showRuleCount,
-                                onClick = { onAppClick(app.packageInfo.packageName, app.label) },
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                            Text(
+                                text = "${state.progress}%",
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
+                } else {
+                    AppListContent(
+                        state = state,
+                        paddingValues = paddingValues,
+                        isSearching = isSearching,
+                        searchQuery = searchQuery,
+                        showRuleCount = showRuleCount,
+                        pullToRefreshState = pullToRefreshState,
+                        onRefresh = { viewModel.load() },
+                        onAppClick = onAppClick,
+                    )
+                }
+            }
+
+            is AppListState.Done -> {
+                AppListContent(
+                    state = state,
+                    paddingValues = paddingValues,
+                    isSearching = isSearching,
+                    searchQuery = searchQuery,
+                    showRuleCount = showRuleCount,
+                    pullToRefreshState = pullToRefreshState,
+                    onRefresh = { viewModel.load() },
+                    onAppClick = onAppClick,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppListContent(
+    state: AppListState,
+    paddingValues: PaddingValues,
+    isSearching: Boolean,
+    searchQuery: String,
+    showRuleCount: Boolean,
+    pullToRefreshState: androidx.compose.material3.pulltorefresh.PullToRefreshState,
+    onRefresh: () -> Unit,
+    onAppClick: (packageName: String, label: String) -> Unit,
+) {
+    val baseList = when (state) {
+        is AppListState.Loading -> state.list
+        is AppListState.Done -> state.list
+    }.orEmpty()
+    val filteredList = baseList.filter { app ->
+        if (!isSearching || searchQuery.isBlank()) true
+        else app.label.contains(searchQuery, ignoreCase = true) ||
+            app.packageInfo.packageName.contains(searchQuery, ignoreCase = true)
+    }
+    PullToRefreshBox(
+        isRefreshing = state is AppListState.Loading && state.list != null,
+        onRefresh = onRefresh,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues),
+        state = pullToRefreshState,
+    ) {
+        if (filteredList.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                EmptyStateCard(
+                    title = stringResource(R.string.no_apps_found),
+                    subtitle = stringResource(R.string.empty_search_hint),
+                    icon = Icons.Outlined.Web,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Web,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Column(modifier = Modifier.padding(start = 12.dp)) {
+                                Text(
+                                    text = stringResource(R.string.app_management),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                                Text(
+                                    text = "${filteredList.size} / ${baseList.size}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
+                        }
+                    }
+                }
+                items(filteredList, key = { it.packageInfo.packageName }) { app ->
+                    AppListItem(
+                        app = app,
+                        showRuleCount = showRuleCount,
+                        onClick = { onAppClick(app.packageInfo.packageName, app.label) },
+                    )
                 }
             }
         }

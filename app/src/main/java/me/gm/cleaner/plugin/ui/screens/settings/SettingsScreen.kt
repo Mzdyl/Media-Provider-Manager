@@ -35,7 +35,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.google.gson.JsonParser
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.ui.components.PreferenceGroup
 import me.gm.cleaner.plugin.ui.components.SectionHeader
 import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
@@ -145,7 +147,9 @@ fun SettingsScreen(
                                     val text = clip.getItemAt(0).text?.toString()
                                     if (!text.isNullOrEmpty()) {
                                         try {
-                                            JSONObject(text)
+                                            val parsed = JsonParser.parseString(text)
+                                            require(parsed.isJsonArray)
+                                            Template.GSON.fromJson(text, Array<Template>::class.java)
                                             onTemplateRestore(text)
                                             Toast.makeText(context, R.string.restore_ok, Toast.LENGTH_SHORT).show()
                                         } catch (_: Exception) {

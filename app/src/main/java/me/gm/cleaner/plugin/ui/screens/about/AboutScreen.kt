@@ -48,7 +48,6 @@ import io.noties.markwon.image.ImagesPlugin
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
-import me.gm.cleaner.plugin.ui.drawer.about.AboutViewModel
 
 @Composable
 fun AboutScreen(
