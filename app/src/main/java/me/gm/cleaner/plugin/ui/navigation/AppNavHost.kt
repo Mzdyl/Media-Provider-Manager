@@ -1,5 +1,6 @@
 package me.gm.cleaner.plugin.ui.navigation
 
+import android.util.SparseArray
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,24 +32,17 @@ fun AppNavHost(
     onOpenDrawer: () -> Unit,
     binderViewModel: BinderViewModel = hiltViewModel(),
 ) {
+    // Non-blocking initialization - load data in background without blocking UI
     LaunchedEffect(binderViewModel) {
-        var attempts = 0
-        while (attempts < 20) {
-            if (binderViewModel.pingBinder()) {
-                val templateJson = binderViewModel.readTemplateSp()
-                val rootJson = binderViewModel.readRootSp()
-                if (templateJson != null || rootJson != null) {
-                    break
-                }
-            }
-            kotlinx.coroutines.delay(500)
-            attempts++
+        if (binderViewModel.pingBinder()) {
+            binderViewModel.readTemplateSp()
+            binderViewModel.readRootSp()
         }
     }
 
-    val sparseArray by binderViewModel.remoteSpCacheLiveData.observeAsState()
-    val templateJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
-    val rootSpJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
+    val sparseArray by binderViewModel.remoteSpCacheLiveData.observeAsState(SparseArray())
+    val templateJson = sparseArray.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
+    val rootSpJson = sparseArray.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
     val templateList: List<Template> = remember(templateJson) {
         runCatching {
             Templates(templateJson).values.sortedWith(collatorComparator { it.templateName })

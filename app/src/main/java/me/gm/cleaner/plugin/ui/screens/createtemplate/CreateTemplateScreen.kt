@@ -18,7 +18,6 @@ package me.gm.cleaner.plugin.ui.screens.createtemplate
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import android.content.pm.PackageInfo
 import android.provider.MediaStore.Files.FileColumns
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,18 +25,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -46,25 +39,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.model.Template
@@ -91,8 +77,6 @@ fun CreateTemplateScreen(
     binderViewModel: BinderViewModel,
 ) {
     val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val isEditing = templateName != null
 
     // Form state
@@ -100,14 +84,13 @@ fun CreateTemplateScreen(
     var selectedOperations by remember {
         mutableStateOf(hookOperation?.toSet() ?: setOf("query", "insert"))
     }
-    var selectedPackages by remember { mutableStateOf(packageNames?.toSet() ?: emptySet<String>()) }
     var selectedMediaTypes by remember {
         mutableStateOf(permittedMediaTypes?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet<Int>())
     }
     var selectedFilterPaths by remember { mutableStateOf(filterPaths?.distinct().orEmpty()) }
-    var showAppPicker by remember { mutableStateOf(false) }
-    var installedPackages by remember { mutableStateOf<List<PackageInfo>>(emptyList()) }
-    var packagesLoaded by remember { mutableStateOf(false) }
+    // Preserve original applyToApp when editing
+    val originalPackageNames = packageNames
+    var hasLoaded by remember { mutableStateOf(false) }
 
     val hookOperations = listOf("query", "insert")
     val mediaTypes = listOf(
@@ -127,11 +110,39 @@ fun CreateTemplateScreen(
         selectedFilterPaths = (selectedFilterPaths + path).distinct().sorted()
     }
 
+    // Auto-save function
+    fun saveTemplate() {
+        if (name.isBlank() || selectedOperations.isEmpty()) return
+
+        val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
+        val nameConflict = existingTemplates.any {
+            it.templateName == name && it.templateName != templateName
+        }
+        if (nameConflict) return
+
+        val template = Template(
+            templateName = name,
+            hookOperation = selectedOperations.toList(),
+            applyToApp = originalPackageNames,
+            permittedMediaTypes = selectedMediaTypes.toList().ifEmpty { null },
+            filterPath = selectedFilterPaths.ifEmpty { null },
+        )
+
+        val json = Template.GSON.toJson(
+            existingTemplates.filterNot { it.templateName == templateName } + template
+        )
+        binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
+    }
+
+    // Load existing template data on first render
     LaunchedEffect(Unit) {
-        if (!packagesLoaded) {
-            installedPackages = binderViewModel.getInstalledPackages(0)
-                .sortedBy { it.applicationInfo?.loadLabel(context.packageManager).toString() }
-            packagesLoaded = true
+        hasLoaded = true
+    }
+
+    // Auto-save when state changes (after initial load)
+    LaunchedEffect(name, selectedOperations, selectedMediaTypes, selectedFilterPaths) {
+        if (hasLoaded) {
+            saveTemplate()
         }
     }
 
@@ -143,52 +154,12 @@ fun CreateTemplateScreen(
                 } else {
                     stringResource(R.string.create_template_title)
                 },
-                onNavigateBack = onNavigateBack,
-                actions = {
-                IconButton(onClick = {
-                    val canSave = name.isNotBlank() && selectedOperations.isNotEmpty()
-                    if (!canSave) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                context.getString(R.string.template_save_validation)
-                            )
-                        }
-                        return@IconButton
-                    }
-
-                    val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
-                    val nameConflict = existingTemplates.any {
-                        it.templateName == name && it.templateName != templateName
-                    }
-                    if (nameConflict) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                context.getString(R.string.template_name_exists)
-                            )
-                        }
-                        return@IconButton
-                    }
-
-                    val template = Template(
-                        templateName = name,
-                        hookOperation = selectedOperations.toList(),
-                        applyToApp = selectedPackages.toList().ifEmpty { null },
-                        permittedMediaTypes = selectedMediaTypes.toList().ifEmpty { null },
-                        filterPath = selectedFilterPaths.ifEmpty { null },
-                    )
-
-                    val json = Template.GSON.toJson(
-                        existingTemplates.filterNot { it.templateName == templateName } + template
-                    )
-                    binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
-                    onSave()
-                }) {
-                    Icon(Icons.Default.Save, contentDescription = stringResource(R.string.save))
-                }
+                onNavigateBack = {
+                    saveTemplate()
+                    onNavigateBack()
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         Column(
             modifier = Modifier.fillMaxSize()
@@ -227,35 +198,6 @@ fun CreateTemplateScreen(
                         )
                         if (index != hookOperations.lastIndex) {
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        }
-                    }
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader(title = stringResource(R.string.apply_to_app_title))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showAppPicker = true },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = if (selectedPackages.isEmpty()) {
-                                stringResource(R.string.all_apps)
-                            } else {
-                                stringResource(R.string.apps_selected_count, selectedPackages.size)
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        if (selectedPackages.isNotEmpty()) {
-                            Text(
-                                text = selectedPackages.take(3).joinToString(", "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
                         }
                     }
                 }
@@ -307,19 +249,6 @@ fun CreateTemplateScreen(
                 }
             }
         }
-    }
-
-    // App picker dialog
-    if (showAppPicker) {
-        AppPickerDialog(
-            installedPackages = installedPackages,
-            selectedPackages = selectedPackages,
-            onDismiss = { showAppPicker = false },
-            onConfirm = { packages ->
-                selectedPackages = packages
-                showAppPicker = false
-            },
-        )
     }
 }
 
@@ -373,108 +302,6 @@ private fun FilterPathRow(
             )
         }
     }
-}
-
-@Composable
-private fun AppPickerDialog(
-    installedPackages: List<PackageInfo>,
-    selectedPackages: Set<String>,
-    onDismiss: () -> Unit,
-    onConfirm: (Set<String>) -> Unit,
-) {
-    val context = LocalContext.current
-    var tempSelected by remember { mutableStateOf(selectedPackages) }
-
-    androidx.compose.material3.AlertDialog(
-    onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.apply_to_app_title)) },
-        text = {
-            var query by remember { mutableStateOf("") }
-            Column(
-                modifier = Modifier.fillMaxWidth().height(400.dp).verticalScroll(rememberScrollState()),
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text(stringResource(R.string.search)) },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    singleLine = true,
-                )
-                val filteredPackages = installedPackages.filter { pi ->
-                    val label = pi.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: pi.packageName
-                    val pkg = pi.packageName
-                    label.contains(query, ignoreCase = true) || pkg.contains(query, ignoreCase = true)
-                }
-                filteredPackages.forEach { pi ->
-                    val packageName = pi.packageName
-                    val label = pi.applicationInfo?.loadLabel(context.packageManager)?.toString() ?: packageName
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable {
-                                tempSelected = if (packageName in tempSelected) {
-                                    tempSelected - packageName
-                                } else {
-                                    tempSelected + packageName
-                                }
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val icon = try {
-                            pi.applicationInfo?.loadIcon(context.packageManager)
-                        } catch (_: Exception) { null }
-                        if (icon != null) {
-                            val bitmap = remember(packageName) {
-                                android.graphics.Bitmap.createBitmap(
-                                    icon.intrinsicWidth.coerceAtLeast(1),
-                                    icon.intrinsicHeight.coerceAtLeast(1),
-                                    android.graphics.Bitmap.Config.ARGB_8888,
-                                ).also { b ->
-                                    icon.setBounds(0, 0, b.width, b.height)
-                                    icon.draw(android.graphics.Canvas(b))
-                                }
-                            }
-                            Icon(
-                                painter = BitmapPainter(bitmap.asImageBitmap()),
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = packageName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                        if (packageName in tempSelected) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(tempSelected) }) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
-    )
 }
 
 @Composable
