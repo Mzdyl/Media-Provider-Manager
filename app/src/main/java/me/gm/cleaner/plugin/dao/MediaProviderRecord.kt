@@ -78,11 +78,11 @@ data class MediaProviderRecord(
 interface MediaProviderRecordDao {
     @Query("SELECT * FROM MediaProviderRecord WHERE time_millis BETWEEN (:start) AND (:end) AND operation IN (:operations) ORDER BY time_millis DESC")
     fun loadForTimeMillis(
-        start: Long, end: Long, @MediaProviderOperation vararg operations: Int
+        start: Long, end: Long, @MediaProviderOperation operations: IntArray
     ): Cursor
 
     @Query("SELECT count(*) FROM MediaProviderRecord WHERE package_name IN (:packageNames) AND operation IN (:operation)")
-    fun packageUsageTimes(@MediaProviderOperation operation: Int, vararg packageNames: String): Int
+    fun packageUsageTimes(@MediaProviderOperation operation: Int, packageNames: Array<String>): Int
 
     @Insert
     fun insert(records: MediaProviderRecord)

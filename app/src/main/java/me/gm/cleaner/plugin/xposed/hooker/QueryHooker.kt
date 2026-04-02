@@ -278,7 +278,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val start = queryArgs.getString(ContentResolver.QUERY_ARG_SQL_SELECTION)!!.toLong()
         val end = queryArgs.getString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER)!!.toLong()
         val packageNames = queryArgs.getStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS)
-        return service.dao.loadForTimeMillis(start, end, *table.map { it.toInt() }.toIntArray())
+        return service.dao.loadForTimeMillis(start, end, table.map { it.toInt() }.toIntArray())
     }
 
     companion object {

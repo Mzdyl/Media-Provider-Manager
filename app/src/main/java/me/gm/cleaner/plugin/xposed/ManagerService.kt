@@ -254,7 +254,7 @@ abstract class ManagerService : IManagerService.Stub() {
 
     override fun packageUsageTimes(operation: Int, packageNames: List<String>): Int {
         enforceCallerPermission()
-        return dao.packageUsageTimes(operation, *packageNames.toTypedArray())
+        return dao.packageUsageTimes(operation, packageNames.toTypedArray())
     }
 
     override fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
