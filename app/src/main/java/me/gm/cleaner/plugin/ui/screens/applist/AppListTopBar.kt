@@ -15,9 +15,9 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
 
@@ -30,7 +30,8 @@ fun AppListTopBar(
     onSearchToggle: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
-    var showSortMenu by remember { mutableStateOf(false) }
+    var showSortMenu by mutableStateOf(false)
+    val currentSort by RootPreferences.sortByFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.sortByFlowable.value)
 
     TopAppBar(
         title = { Text(stringResource(R.string.app_management)) },
@@ -54,7 +55,6 @@ fun AppListTopBar(
                 expanded = showSortMenu,
                 onDismissRequest = { showSortMenu = false },
             ) {
-                val currentSort = RootPreferences.sortByFlowable.value
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.sort_by_name)) },
                     onClick = {

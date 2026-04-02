@@ -116,6 +116,10 @@ fun UsageRecordScreen(
         }
     }
 
+    val hideQuery by RootPreferences.isHideQueryFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideQueryFlowable.value)
+    val hideInsert by RootPreferences.isHideInsertFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideInsertFlowable.value)
+    val hideDelete by RootPreferences.isHideDeleteFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideDeleteFlowable.value)
+
     val selectedDateStr = remember(viewModel.selectedTime) {
         DateFormat.getInstanceForSkeleton(
             DateFormat.YEAR_ABBR_MONTH_DAY, Locale.getDefault()
@@ -166,19 +170,16 @@ fun UsageRecordScreen(
                         expanded = showFilterMenu,
                         onDismissRequest = { showFilterMenu = false },
                     ) {
-                        val hideQuery = RootPreferences.isHideQueryFlowable.value
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_query_title)) },
                             onClick = { RootPreferences.isHideQueryFlowable.value = !hideQuery },
                             trailingIcon = { Checkbox(checked = hideQuery, onCheckedChange = null) },
                         )
-                        val hideInsert = RootPreferences.isHideInsertFlowable.value
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_insert_title)) },
                             onClick = { RootPreferences.isHideInsertFlowable.value = !hideInsert },
                             trailingIcon = { Checkbox(checked = hideInsert, onCheckedChange = null) },
                         )
-                        val hideDelete = RootPreferences.isHideDeleteFlowable.value
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_delete_title)) },
                             onClick = { RootPreferences.isHideDeleteFlowable.value = !hideDelete },
