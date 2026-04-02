@@ -172,17 +172,26 @@ fun UsageRecordScreen(
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_query_title)) },
-                            onClick = { RootPreferences.isHideQueryFlowable.value = !hideQuery },
+                            onClick = {
+                                RootPreferences.isHideQueryFlowable.value = !hideQuery
+                                showFilterMenu = false
+                            },
                             trailingIcon = { Checkbox(checked = hideQuery, onCheckedChange = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_insert_title)) },
-                            onClick = { RootPreferences.isHideInsertFlowable.value = !hideInsert },
+                            onClick = {
+                                RootPreferences.isHideInsertFlowable.value = !hideInsert
+                                showFilterMenu = false
+                            },
                             trailingIcon = { Checkbox(checked = hideInsert, onCheckedChange = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_hide_delete_title)) },
-                            onClick = { RootPreferences.isHideDeleteFlowable.value = !hideDelete },
+                            onClick = {
+                                RootPreferences.isHideDeleteFlowable.value = !hideDelete
+                                showFilterMenu = false
+                            },
                             trailingIcon = { Checkbox(checked = hideDelete, onCheckedChange = null) },
                         )
                         DropdownMenuItem(
