@@ -1,5 +1,9 @@
 package me.gm.cleaner.plugin.ui.screens.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,17 +29,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.gm.cleaner.plugin.R
-import me.gm.cleaner.plugin.dao.RootPreferences
-import me.gm.cleaner.plugin.xposed.util.BackupUtils
+import org.json.JSONObject
 
 @Composable
 fun SettingsScreen(
+    rootSpJson: String?,
     onTemplatesClick: () -> Unit,
     onBackup: () -> Unit,
-    onRestore: () -> Unit,
+    onRootSettingsChange: (String) -> Unit,
+    onTemplateRestore: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    var usageRecord by remember { mutableStateOf(true) }
+    val prefs = remember(rootSpJson) {
+        runCatching { JSONObject(rootSpJson ?: "{}") }.getOrDefault(JSONObject())
+    }
+    var usageRecord by remember(rootSpJson) {
+        mutableStateOf(prefs.optBoolean("usage_record", true))
+    }
 
     Scaffold { paddingValues ->
         Column(
@@ -50,7 +60,7 @@ fun SettingsScreen(
             SettingsSwitchItem(
                 title = stringResource(R.string.reject_nonstandard_dir_title),
                 summary = stringResource(R.string.reject_nonstandard_dir_summary),
-                checked = false,
+                checked = prefs.optBoolean("reject_nonstandard_dir", true),
                 enabled = false,
                 onCheckedChange = {},
             )
@@ -58,7 +68,12 @@ fun SettingsScreen(
                 title = stringResource(R.string.usage_record_title),
                 summary = stringResource(R.string.usage_record_summary),
                 checked = usageRecord,
-                onCheckedChange = { usageRecord = it },
+                onCheckedChange = { newValue ->
+                    usageRecord = newValue
+                    val updated = JSONObject(prefs.toString())
+                    updated.put("usage_record", newValue)
+                    onRootSettingsChange(updated.toString())
+                },
             )
             HorizontalDivider()
             Text(
@@ -84,7 +99,22 @@ fun SettingsScreen(
             )
             SettingsNavItem(
                 title = stringResource(R.string.restore_title),
-                onClick = onRestore,
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = clipboard.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        val text = clip.getItemAt(0).text?.toString()
+                        if (!text.isNullOrEmpty()) {
+                            try {
+                                JSONObject(text)
+                                onTemplateRestore(text)
+                                Toast.makeText(context, R.string.restore_ok, Toast.LENGTH_SHORT).show()
+                            } catch (_: Exception) {
+                                Toast.makeText(context, R.string.restore_fail_invalid, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                },
             )
         }
     }

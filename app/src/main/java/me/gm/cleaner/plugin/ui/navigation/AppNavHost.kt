@@ -1,8 +1,10 @@
 package me.gm.cleaner.plugin.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -27,11 +29,21 @@ fun AppNavHost(
     startDestination: Any = AppRoute.AppList,
     binderViewModel: BinderViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(binderViewModel) {
+        binderViewModel.readTemplateSp()
+        binderViewModel.readRootSp()
+    }
+
     val sparseArray by binderViewModel.remoteSpCacheLiveData.observeAsState()
-    val templateList: List<Template> = sparseArray?.let { sparse ->
-        val json = sparse.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
-        runCatching { Templates(json).values }.getOrDefault(emptyList())
-    } ?: emptyList()
+    val templateList: List<Template> = remember(sparseArray) {
+        sparseArray?.let { sparse ->
+            val json = sparse.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
+            runCatching { Templates(json).values }.getOrDefault(emptyList())
+        } ?: emptyList()
+    }
+    val rootSpJson: String? = remember(sparseArray) {
+        sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
+    }
 
     NavHost(
         navController = navController,
@@ -65,13 +77,24 @@ fun AppNavHost(
             UsageRecordScreen(binderViewModel = binderViewModel)
         }
         composable<AppRoute.Settings> {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val templateJson = remember(sparseArray) {
+                sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
+            }
             SettingsScreen(
+                rootSpJson = rootSpJson,
                 onTemplatesClick = { navController.navigate(AppRoute.Templates) },
                 onBackup = {
-                    binderViewModel.readTemplateSp()
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("MediaProviderManagerRules", templateJson)
+                    clipboard.setPrimaryClip(clip)
+                    android.widget.Toast.makeText(context, me.gm.cleaner.plugin.R.string.backup_ok, android.widget.Toast.LENGTH_SHORT).show()
                 },
-                onRestore = {
-                    // TODO: implement restore
+                onRootSettingsChange = { newJson ->
+                    binderViewModel.writeRootSp(newJson)
+                },
+                onTemplateRestore = { newJson ->
+                    binderViewModel.writeTemplateSp(newJson)
                 },
             )
         }

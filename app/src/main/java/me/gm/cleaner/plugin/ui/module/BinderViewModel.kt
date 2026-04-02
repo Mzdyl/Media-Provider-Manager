@@ -74,7 +74,10 @@ class BinderViewModel @Inject constructor(
         service?.getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
 
     fun readSp(who: Int): String? =
-        service?.readSp(who)?.also { remoteSpCache.put(who, it) }
+        service?.readSp(who)?.also {
+            remoteSpCache.put(who, it)
+            notifyRemoteSpChanged()
+        }
 
     fun writeSp(who: Int, what: String) {
         val cacheValue = remoteSpCache[who]
