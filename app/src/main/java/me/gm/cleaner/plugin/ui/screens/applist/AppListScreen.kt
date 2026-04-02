@@ -3,8 +3,9 @@ package me.gm.cleaner.plugin.ui.screens.applist
 import android.app.Application
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Web
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListState
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListViewModel
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListModel
@@ -51,6 +53,7 @@ import me.gm.cleaner.plugin.ui.module.BinderViewModel
 @Composable
 fun AppListScreen(
     binderViewModel: BinderViewModel,
+    onOpenDrawer: () -> Unit,
     onAppClick: (packageName: String, label: String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -61,36 +64,40 @@ fun AppListScreen(
         )
     }
     val appsState by viewModel.appsFlow.collectAsStateWithLifecycle(initialValue = null)
+    val showRuleCount by RootPreferences.ruleCountFlowable.asFlow().collectAsStateWithLifecycle(
+        initialValue = RootPreferences.ruleCountFlowable.value
+    )
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
 
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             AppListTopBar(
+                onOpenDrawer = onOpenDrawer,
                 searchQuery = searchQuery,
                 isSearching = isSearching,
                 onSearchQueryChange = { searchQuery = it },
                 onSearchToggle = { isSearching = !isSearching },
                 onRefresh = { viewModel.load() },
-                scrollBehavior = scrollBehavior,
             )
         },
     ) { paddingValues ->
         when (val state = appsState) {
             null, is AppListState.Loading -> {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-                    if (state is AppListState.Loading) {
-                        Text(
-                            text = "${state.progress}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                        if (state is AppListState.Loading) {
+                            Text(
+                                text = "${state.progress}%",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
             }
@@ -101,15 +108,67 @@ fun AppListScreen(
                     else app.label.contains(searchQuery, ignoreCase = true) ||
                         app.packageInfo.packageName.contains(searchQuery, ignoreCase = true)
                 }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                ) {
-                    items(filteredList, key = { it.packageInfo.packageName }) { app ->
-                        AppListItem(
-                            app = app,
-                            onClick = { onAppClick(app.packageInfo.packageName, app.label) },
+                if (filteredList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        EmptyStateCard(
+                            title = stringResource(R.string.no_apps_found),
+                            subtitle = stringResource(R.string.empty_search_hint),
+                            icon = Icons.Outlined.Web,
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                ),
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Web,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                                        Text(
+                                            text = stringResource(R.string.app_management),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                        Text(
+                                            text = "${filteredList.size} / ${state.list.size}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        items(filteredList, key = { it.packageInfo.packageName }) { app ->
+                            AppListItem(
+                                app = app,
+                                showRuleCount = showRuleCount,
+                                onClick = { onAppClick(app.packageInfo.packageName, app.label) },
+                            )
+                        }
                     }
                 }
             }
@@ -120,24 +179,33 @@ fun AppListScreen(
 @Composable
 private fun AppListItem(
     app: AppListModel,
+    showRuleCount: Boolean,
     onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AppIcon(packageInfo = app.packageInfo, modifier = Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape))
-            Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
+            AppIcon(
+                packageInfo = app.packageInfo,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape),
+            )
+            Column(
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .weight(1f)
+            ) {
                 Text(
                     text = app.label,
                     style = MaterialTheme.typography.bodyLarge,
@@ -152,11 +220,10 @@ private fun AppListItem(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (app.ruleCount > 0) {
+            if (showRuleCount && app.ruleCount > 0) {
                 androidx.compose.material3.AssistChip(
                     onClick = onClick,
                     label = { Text("${app.ruleCount}", style = MaterialTheme.typography.labelMedium) },
-                    modifier = Modifier.padding(end = 8.dp),
                 )
             }
         }
@@ -197,22 +264,6 @@ private fun AppIcon(
             painter = painterResource(R.drawable.ic_outline_apps_24),
             contentDescription = null,
             modifier = modifier,
-        )
-    }
-}
-
-@Composable
-private fun EmptyListState(paddingValues: PaddingValues) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(paddingValues),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "No apps found",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }

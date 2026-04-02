@@ -12,6 +12,7 @@
     <string name="audio">音频</string>
     <string name="downloads">下载</string>
     <string name="files">文件</string>
+    <string name="image">图片</string>
     <string name="images">图片</string>
     <string name="video">视频</string>
     <string name="playground">实验</string>
@@ -76,8 +77,14 @@
     <string name="template_name_title">模板名</string>
     <string name="template_name_not_unique">模板名不唯一</string>
     <string name="hook_operation_title">挂钩操作</string>
+    <string name="hook_operation_query_label">查询</string>
+    <string name="hook_operation_insert_label">插入</string>
     <string name="apply_to_app_title">应用到应用</string>
     <string name="permitted_media_types_title">允许的媒体类型</string>
+    <string name="media_type_playlist_label">播放列表</string>
+    <string name="media_type_subtitle_label">字幕</string>
+    <string name="media_type_document_label">文档</string>
+    <string name="media_type_none_label">无</string>
     <string name="filter_path_title">过滤路径</string>
     <string name="add_path">添加路径</string>
     <string name="save">保存</string>
@@ -119,4 +126,24 @@
     <string name="restore_ok">规则恢复成功</string>
     <string name="restore_fail_invalid">恢复失败：剪贴板中没有有效的 JSON 规则</string>
     <string name="about_load_error">加载 README 失败：%s</string>
+    <string name="open_drawer">打开导航抽屉</string>
+    <string name="back">返回</string>
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="retry">重试</string>
+    <string name="sort">排序</string>
+    <string name="filter">筛选</string>
+    <string name="module_version">模块 v%d</string>
+    <string name="no_apps_found">没有找到应用</string>
+    <string name="no_usage_records_found">没有找到使用记录</string>
+    <string name="no_templates">还没有模板</string>
+    <string name="all_apps">全部应用</string>
+    <string name="apps_selected_count">已选择 %d 个应用</string>
+    <string name="template_save_validation">请填写模板名并至少选择一个挂钩操作</string>
+    <string name="template_name_exists">模板名已存在</string>
+    <string name="create_new_template">创建新模板</string>
+    <string name="add_to_template">添加到模板</string>
+    <string name="applied_templates_count">已应用模板（%d）</string>
+    <string name="template_count">%d 个模板</string>
+    <string name="empty_search_hint">请尝试其他关键字，或刷新列表。</string>
 </resources>

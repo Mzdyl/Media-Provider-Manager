@@ -27,6 +27,7 @@ sealed interface AppRoute {
         val hookOperation: List<String>? = null,
         val packageNames: List<String>? = null,
         val permittedMediaTypes: List<String>? = null,
+        val filterPaths: List<String>? = null,
     ) : AppRoute
 
     @Serializable

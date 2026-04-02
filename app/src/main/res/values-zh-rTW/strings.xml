@@ -12,6 +12,7 @@
     <string name="audio">音訊</string>
     <string name="downloads">下載</string>
     <string name="files">檔案</string>
+    <string name="image">圖片</string>
     <string name="images">圖片</string>
     <string name="video">影片</string>
     <string name="playground">實驗</string>
@@ -76,8 +77,14 @@
     <string name="template_name_title">模板名</string>
     <string name="template_name_not_unique">模板名不唯一</string>
     <string name="hook_operation_title">掛鉤操作</string>
+    <string name="hook_operation_query_label">查詢</string>
+    <string name="hook_operation_insert_label">插入</string>
     <string name="apply_to_app_title">應用到應用</string>
     <string name="permitted_media_types_title">允許的媒體型別</string>
+    <string name="media_type_playlist_label">播放列表</string>
+    <string name="media_type_subtitle_label">字幕</string>
+    <string name="media_type_document_label">文件</string>
+    <string name="media_type_none_label">無</string>
     <string name="filter_path_title">過濾路徑</string>
     <string name="add_path">新增路徑</string>
     <string name="save">儲存</string>

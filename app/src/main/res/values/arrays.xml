@@ -23,21 +23,21 @@
     </array>
 
     <array name="hook_operation_entries">
-        <item>Query</item>
-        <item>Insert</item>
+        <item>@string/hook_operation_query_label</item>
+        <item>@string/hook_operation_insert_label</item>
     </array>
     <array name="hook_operation_entryValues" translatable="false">
         <item>@string/hook_operation_query</item>
         <item>@string/hook_operation_insert</item>
     </array>
     <array name="media_types_entries">
-        <item>Playlist</item>
-        <item>Subtitle</item>
+        <item>@string/media_type_playlist_label</item>
+        <item>@string/media_type_subtitle_label</item>
         <item>@string/audio</item>
         <item>@string/video</item>
-        <item>Image</item>
-        <item>Document</item>
-        <item>None</item>
+        <item>@string/image</item>
+        <item>@string/media_type_document_label</item>
+        <item>@string/media_type_none_label</item>
     </array>
     <array name="media_types_entryValues" translatable="false">
         <item>@string/media_type_playlist</item>

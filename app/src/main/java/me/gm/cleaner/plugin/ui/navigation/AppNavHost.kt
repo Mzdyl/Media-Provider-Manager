@@ -27,6 +27,7 @@ fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     startDestination: Any = AppRoute.AppList,
+    onOpenDrawer: () -> Unit,
     binderViewModel: BinderViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(binderViewModel) {
@@ -59,6 +60,7 @@ fun AppNavHost(
         composable<AppRoute.AppList> {
             AppListScreen(
                 binderViewModel = binderViewModel,
+                onOpenDrawer = onOpenDrawer,
                 onAppClick = { pkg, label ->
                     navController.navigate(AppRoute.AppDetail(packageName = pkg, label = label))
                 },
@@ -78,12 +80,16 @@ fun AppNavHost(
             )
         }
         composable<AppRoute.UsageRecord> {
-            UsageRecordScreen(binderViewModel = binderViewModel)
+            UsageRecordScreen(
+                binderViewModel = binderViewModel,
+                onOpenDrawer = onOpenDrawer,
+            )
         }
         composable<AppRoute.Settings> {
             val context = androidx.compose.ui.platform.LocalContext.current
             SettingsScreen(
                 rootSpJson = rootSpJson,
+                onOpenDrawer = onOpenDrawer,
                 onTemplatesClick = { navController.navigate(AppRoute.Templates) },
                 onBackup = {
                     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -111,6 +117,7 @@ fun AppNavHost(
                             hookOperation = template.hookOperation,
                             packageNames = template.applyToApp,
                             permittedMediaTypes = template.permittedMediaTypes?.map { it.toString() },
+                            filterPaths = template.filterPath,
                         )
                     )
                 },
@@ -123,13 +130,14 @@ fun AppNavHost(
                 hookOperation = route.hookOperation,
                 packageNames = route.packageNames,
                 permittedMediaTypes = route.permittedMediaTypes,
+                filterPaths = route.filterPaths,
                 onNavigateBack = { navController.popBackStack() },
                 onSave = { navController.popBackStack() },
                 binderViewModel = binderViewModel,
             )
         }
         composable<AppRoute.About> {
-            AboutScreen()
+            AboutScreen(onOpenDrawer = onOpenDrawer)
         }
     }
 }

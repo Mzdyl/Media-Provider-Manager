@@ -17,7 +17,9 @@
 package me.gm.cleaner.plugin.ui.screens.appdetail
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -42,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,13 +50,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
+import me.gm.cleaner.plugin.ui.components.EmptyStateCard
+import me.gm.cleaner.plugin.ui.components.SecondaryTopBar
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
+import me.gm.cleaner.plugin.ui.screens.templating.templateFilterPathSummary
+import me.gm.cleaner.plugin.ui.screens.templating.templateMediaTypeSummary
+import me.gm.cleaner.plugin.ui.screens.templating.templateOperationSummary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,45 +81,72 @@ fun AppDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(label ?: packageName) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            SecondaryTopBar(
+                title = label ?: packageName,
+                onNavigateBack = onNavigateBack,
             )
         },
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Text(
-                    text = "Applied Templates (${appTemplates.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = stringResource(R.string.applied_templates_count, appTemplates.size),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = packageName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
             }
-            items(appTemplates, key = { it.templateName }) { template ->
-                AppliedTemplateCard(
-                    template = template,
-                    onRemove = {
-                        updateTemplateApplyToApp(binderViewModel, template, packageName, remove = true)
-                    },
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+            if (appTemplates.isEmpty()) {
+                item {
+                    EmptyStateCard(
+                        title = stringResource(R.string.applied_templates_count, 0),
+                        subtitle = stringResource(R.string.add_to_template),
+                        icon = Icons.Default.Check,
+                    )
+                }
+            } else {
+                items(appTemplates, key = { it.templateName }) { template ->
+                    AppliedTemplateCard(
+                        template = template,
+                        onRemove = {
+                            updateTemplateApplyToApp(binderViewModel, template, packageName, remove = true)
+                        },
+                    )
+                }
             }
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable(onClick = {
-                        if (availableTemplates.isEmpty()) {
-                            onCreateTemplate()
-                        } else {
-                            showTemplatePicker = true
-                        }
-                    }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = {
+                            if (availableTemplates.isEmpty()) {
+                                onCreateTemplate()
+                            } else {
+                                showTemplatePicker = true
+                            }
+                        }),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -125,9 +159,13 @@ fun AppDetailScreen(
                         )
                         Spacer(modifier = Modifier.padding(start = 8.dp))
                         Text(
-                            text = if (availableTemplates.isEmpty()) "Create new template" else "Add to template",
+                            text = if (availableTemplates.isEmpty()) {
+                                stringResource(R.string.create_new_template)
+                            } else {
+                                stringResource(R.string.add_to_template)
+                            },
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                 }
@@ -184,7 +222,13 @@ private fun AppliedTemplateCard(
     template: Template,
     onRemove: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -195,10 +239,33 @@ private fun AppliedTemplateCard(
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = template.hookOperation.joinToString(", "),
+                    text = templateOperationSummary(context, template),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                templateMediaTypeSummary(context, template)?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                templateFilterPathSummary(context, template)?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             IconButton(onClick = onRemove) {
                 Icon(
@@ -220,7 +287,7 @@ private fun TemplatePickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to template") },
+        title = { Text(stringResource(R.string.add_to_template)) },
         text = {
             LazyColumn {
                 items(templates, key = { it.templateName }) { template ->
@@ -251,7 +318,7 @@ private fun TemplatePickerDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Create new template",
+                            text = stringResource(R.string.create_new_template),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.weight(1f),
@@ -267,7 +334,7 @@ private fun TemplatePickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         },
     )

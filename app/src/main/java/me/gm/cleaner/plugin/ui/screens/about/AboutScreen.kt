@@ -23,8 +23,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,10 +46,13 @@ import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.html.HtmlPlugin
 import io.noties.markwon.image.ImagesPlugin
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.ui.components.EmptyStateCard
+import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
 import me.gm.cleaner.plugin.ui.drawer.about.AboutViewModel
 
 @Composable
 fun AboutScreen(
+    onOpenDrawer: () -> Unit,
     viewModel: AboutViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -76,7 +80,14 @@ fun AboutScreen(
             .build()
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(
+        topBar = {
+            TopLevelTopBar(
+                title = stringResource(R.string.about),
+                onOpenDrawer = onOpenDrawer,
+            )
+        },
+    ) { paddingValues ->
         when {
             isLoading -> {
                 Box(
@@ -87,21 +98,24 @@ fun AboutScreen(
                 }
             }
             errorMessage != null -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                    Text(
-                        text = stringResource(R.string.about_load_error, errorMessage!!),
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyLarge,
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    EmptyStateCard(
+                        title = stringResource(R.string.about),
+                        subtitle = stringResource(R.string.about_load_error, errorMessage!!),
+                        icon = Icons.Filled.Info,
+                        action = {
+                            androidx.compose.material3.TextButton(onClick = { reloadKey++ }) {
+                                Text(text = stringResource(R.string.retry))
+                            }
+                        },
                     )
-                    androidx.compose.material3.TextButton(onClick = { reloadKey++ }) {
-                        Text(text = "Retry")
-                    }
                 }
             }
             readmeContent != null -> {

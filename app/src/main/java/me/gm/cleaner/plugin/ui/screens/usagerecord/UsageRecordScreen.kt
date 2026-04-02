@@ -4,10 +4,12 @@ import android.app.Application
 import android.icu.text.DateFormat
 import android.icu.util.TimeZone
 import android.text.format.DateUtils
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,30 +17,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DatePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,9 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -59,22 +61,24 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Date
+import java.util.Locale
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.ui.components.EmptyStateCard
+import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.module.usagerecord.UsageRecordState
 import me.gm.cleaner.plugin.ui.module.usagerecord.UsageRecordViewModel
-import java.util.Date
-import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsageRecordScreen(
     binderViewModel: BinderViewModel,
+    onOpenDrawer: () -> Unit,
 ) {
     val context = LocalContext.current
     val viewModel = remember(binderViewModel) {
@@ -89,8 +93,6 @@ fun UsageRecordScreen(
     var showFilterMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-
     LaunchedEffect(viewModel, binderViewModel) {
         while (!binderViewModel.pingBinder()) {
             kotlinx.coroutines.delay(500)
@@ -99,152 +101,186 @@ fun UsageRecordScreen(
     }
 
     if (showDatePicker) {
-        androidx.compose.material3.DatePickerDialog(
+        DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showDatePicker = false
-                    viewModel.reload()
-                }) {
-                    Text("OK")
+                TextButton(
+                    onClick = {
+                        showDatePicker = false
+                        viewModel.reload()
+                    },
+                ) {
+                    Text(stringResource(R.string.confirm))
                 }
             },
         ) {
             val state = rememberDatePickerState(initialSelectedDateMillis = viewModel.selectedTime)
-            androidx.compose.material3.DatePicker(state = state)
+            DatePicker(state = state)
             LaunchedEffect(state.selectedDateMillis) {
                 state.selectedDateMillis?.let { viewModel.selectedTime = it }
             }
         }
     }
 
-    val hideQuery by RootPreferences.isHideQueryFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideQueryFlowable.value)
-    val hideInsert by RootPreferences.isHideInsertFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideInsertFlowable.value)
-    val hideDelete by RootPreferences.isHideDeleteFlowable.asFlow().collectAsStateWithLifecycle(initialValue = RootPreferences.isHideDeleteFlowable.value)
+    val hideQuery by RootPreferences.isHideQueryFlowable.asFlow().collectAsStateWithLifecycle(
+        initialValue = RootPreferences.isHideQueryFlowable.value
+    )
+    val hideInsert by RootPreferences.isHideInsertFlowable.asFlow().collectAsStateWithLifecycle(
+        initialValue = RootPreferences.isHideInsertFlowable.value
+    )
+    val hideDelete by RootPreferences.isHideDeleteFlowable.asFlow().collectAsStateWithLifecycle(
+        initialValue = RootPreferences.isHideDeleteFlowable.value
+    )
 
     val selectedDateStr = remember(viewModel.selectedTime) {
         DateFormat.getInstanceForSkeleton(
-            DateFormat.YEAR_ABBR_MONTH_DAY, Locale.getDefault()
+            DateFormat.YEAR_ABBR_MONTH_DAY,
+            Locale.getDefault(),
         ).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date(viewModel.selectedTime))
     }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.usage_record))
+            Column {
+                TopLevelTopBar(
+                    title = stringResource(R.string.usage_record),
+                    onOpenDrawer = onOpenDrawer,
+                    actions = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = stringResource(R.string.pick_date_title),
+                            )
+                        }
+                        IconButton(onClick = { isSearching = !isSearching }) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = stringResource(R.string.search),
+                            )
+                        }
+                        IconButton(onClick = { showFilterMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = stringResource(R.string.filter),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_hide_query_title)) },
+                                onClick = {
+                                    RootPreferences.isHideQueryFlowable.value = !hideQuery
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = { Checkbox(checked = hideQuery, onCheckedChange = null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_hide_insert_title)) },
+                                onClick = {
+                                    RootPreferences.isHideInsertFlowable.value = !hideInsert
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = { Checkbox(checked = hideInsert, onCheckedChange = null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_hide_delete_title)) },
+                                onClick = {
+                                    RootPreferences.isHideDeleteFlowable.value = !hideDelete
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = { Checkbox(checked = hideDelete, onCheckedChange = null) },
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_clear)) },
+                                onClick = {
+                                    binderViewModel.clearAllTables()
+                                    viewModel.reload()
+                                    showFilterMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ClearAll,
+                                        contentDescription = null,
+                                    )
+                                },
+                            )
+                        }
+                    },
+                )
+                Surface {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
                             text = selectedDateStr,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
                         )
+                        AnimatedVisibility(visible = isSearching) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = {
+                                    searchQuery = it
+                                    viewModel.queryText = it
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text(stringResource(R.string.search)) },
+                                singleLine = true,
+                            )
+                        }
                     }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        showDatePicker = true
-                    }) {
-                        Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.pick_date_title))
-                    }
-                    IconButton(onClick = { isSearching = !isSearching }) {
-                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
-                    }
-                    if (isSearching) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = {
-                                searchQuery = it
-                                viewModel.queryText = it
-                            },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text(stringResource(R.string.search)) },
-                            singleLine = true,
-                        )
-                    }
-                    IconButton(onClick = { showFilterMenu = true }) {
-                        Icon(Icons.Filled.Tune, contentDescription = "Filter")
-                    }
-                    DropdownMenu(
-                        expanded = showFilterMenu,
-                        onDismissRequest = { showFilterMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_hide_query_title)) },
-                            onClick = {
-                                RootPreferences.isHideQueryFlowable.value = !hideQuery
-                                showFilterMenu = false
-                            },
-                            trailingIcon = { Checkbox(checked = hideQuery, onCheckedChange = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_hide_insert_title)) },
-                            onClick = {
-                                RootPreferences.isHideInsertFlowable.value = !hideInsert
-                                showFilterMenu = false
-                            },
-                            trailingIcon = { Checkbox(checked = hideInsert, onCheckedChange = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_hide_delete_title)) },
-                            onClick = {
-                                RootPreferences.isHideDeleteFlowable.value = !hideDelete
-                                showFilterMenu = false
-                            },
-                            trailingIcon = { Checkbox(checked = hideDelete, onCheckedChange = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_clear)) },
-                            onClick = {
-                                binderViewModel.clearAllTables()
-                                viewModel.reload()
-                                showFilterMenu = false
-                            },
-                        leadingIcon = { Icon(Icons.Filled.ClearAll, contentDescription = null) },
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-            )
+                }
+            }
         },
     ) { paddingValues ->
         when (val state = recordsState) {
             null, UsageRecordState.Loading -> {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                    CircularProgressIndicator()
                 }
             }
+
             is UsageRecordState.Done -> {
                 val filteredList = state.list.filter { record ->
-                    if (!isSearching || searchQuery.isBlank()) true
+                    if (searchQuery.isBlank()) true
                     else record.data.any { it.contains(searchQuery, ignoreCase = true) } ||
                         record.label?.contains(searchQuery, ignoreCase = true) == true ||
                         record.packageName.contains(searchQuery, ignoreCase = true)
                 }
                 if (filteredList.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize().padding(paddingValues),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No usage records found",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
+                        EmptyStateCard(
+                            title = stringResource(R.string.no_usage_records_found),
+                            subtitle = selectedDateStr,
+                            icon = Icons.Default.DateRange,
+                        )
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(paddingValues),
-                        contentPadding = PaddingValues(bottom = 16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(filteredList, key = { it.timeMillis }) { record ->
                             UsageRecordItem(record = record)
@@ -266,7 +302,8 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
         else -> ""
     }
     val timeStr = DateUtils.formatDateTime(
-        context, record.timeMillis,
+        context,
+        record.timeMillis,
         DateUtils.FORMAT_NO_NOON or DateUtils.FORMAT_NO_MIDNIGHT or
             DateUtils.FORMAT_ABBREV_ALL or DateUtils.FORMAT_SHOW_TIME,
     )
@@ -277,7 +314,7 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
         OP_DELETE -> Color(0xFFD32F2F)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val operationText: androidx.compose.ui.text.AnnotatedString = if (isIntercepted) {
+    val operationText = if (isIntercepted) {
         buildAnnotatedString {
             pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
             append("$operationLabel$timeStr")
@@ -287,55 +324,76 @@ private fun UsageRecordItem(record: MediaProviderRecord) {
         buildAnnotatedString { append("$operationLabel$timeStr") }
     }
 
-    Column(
-        modifier = Modifier.fillMaxWidth().clickable { /* TODO: show popup */ }.padding(horizontal = 16.dp, vertical = 12.dp),
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            UsageRecordAppIcon(record = record, modifier = Modifier.size(32.dp))
-            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                UsageRecordAppIcon(record = record, modifier = Modifier.size(32.dp))
+                Column(
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .weight(1f),
+                ) {
+                    Text(
+                        text = record.label ?: record.packageName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = operationText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = operationColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            record.data.firstOrNull()?.let { firstData ->
                 Text(
-                    text = record.label ?: record.packageName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = operationText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = operationColor,
-                    maxLines = 1,
+                    text = firstData,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 44.dp),
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        record.data.firstOrNull()?.let { firstData ->
-            Text(
-                text = firstData,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 44.dp, top = 4.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (record.data.size > 1) {
-            Text(
-                text = stringResource(R.string.and_more, record.data.size - 1),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 44.dp, top = 2.dp),
-            )
+            if (record.data.size > 1) {
+                Text(
+                    text = stringResource(R.string.and_more, record.data.size - 1),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 44.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun UsageRecordAppIcon(record: MediaProviderRecord, modifier: Modifier = Modifier) {
+private fun UsageRecordAppIcon(
+    record: MediaProviderRecord,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val pi = record.packageInfo
     if (pi != null) {
         val icon = remember(pi.packageName) {
-            try { pi.applicationInfo?.loadIcon(context.packageManager) } catch (_: Exception) { null }
+            try {
+                pi.applicationInfo?.loadIcon(context.packageManager)
+            } catch (_: Exception) {
+                null
+            }
         }
         if (icon != null) {
             val bitmap = remember(icon) {

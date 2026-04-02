@@ -13,6 +13,7 @@
     <string name="audio">Audio</string>
     <string name="downloads">Downloads</string>
     <string name="files">Files</string>
+    <string name="image">Image</string>
     <string name="images">Images</string>
     <string name="video">Video</string>
     <string name="playground">Playground</string>
@@ -92,6 +93,8 @@
     <string name="template_name_not_unique">The template name is not unique.</string>
     <string name="hook_operation_key" translatable="false">hook_operation</string>
     <string name="hook_operation_title">Hook operation</string>
+    <string name="hook_operation_query_label">Query</string>
+    <string name="hook_operation_insert_label">Insert</string>
     <string name="hook_operation_query" translatable="false">query</string>
     <string name="hook_operation_insert" translatable="false">insert</string>
     <string name="apply_to_app_key" translatable="false">apply_to_app</string>
@@ -105,6 +108,10 @@
     <string name="media_type_image" translatable="false">1</string>
     <string name="media_type_document" translatable="false">6</string>
     <string name="media_type_none" translatable="false">0</string>
+    <string name="media_type_playlist_label">Playlist</string>
+    <string name="media_type_subtitle_label">Subtitle</string>
+    <string name="media_type_document_label">Document</string>
+    <string name="media_type_none_label">None</string>
     <string name="filter_path_key" translatable="false">filter_path</string>
     <string name="filter_path_title">Filter path</string>
     <string name="add_path">Add a path</string>
@@ -171,4 +178,23 @@
     <string name="open_drawer">Open navigation drawer</string>
     <string name="sort_by_name">App name</string>
     <string name="sort_by_update_time">Update time</string>
+    <string name="back">Back</string>
+    <string name="confirm">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="retry">Retry</string>
+    <string name="sort">Sort</string>
+    <string name="filter">Filter</string>
+    <string name="module_version">Module v%d</string>
+    <string name="no_apps_found">No apps found</string>
+    <string name="no_usage_records_found">No usage records found</string>
+    <string name="no_templates">No templates yet</string>
+    <string name="all_apps">All apps</string>
+    <string name="apps_selected_count">%d app(s) selected</string>
+    <string name="template_save_validation">Please provide a name and select at least one operation</string>
+    <string name="template_name_exists">Template name already exists</string>
+    <string name="create_new_template">Create new template</string>
+    <string name="add_to_template">Add to template</string>
+    <string name="applied_templates_count">Applied Templates (%d)</string>
+    <string name="template_count">%d template(s)</string>
+    <string name="empty_search_hint">Try another keyword or refresh the list.</string>
 </resources>
