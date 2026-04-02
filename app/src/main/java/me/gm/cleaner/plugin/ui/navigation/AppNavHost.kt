@@ -38,14 +38,10 @@ fun AppNavHost(
     }
 
     val sparseArray by binderViewModel.remoteSpCacheLiveData.observeAsState()
-    val templateList: List<Template> = remember(sparseArray) {
-        sparseArray?.let { sparse ->
-            val json = sparse.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
-            runCatching { Templates(json).values }.getOrDefault(emptyList())
-        } ?: emptyList()
-    }
-    val rootSpJson: String? = remember(sparseArray) {
-        sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
+    val templateJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
+    val rootSpJson = sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES)
+    val templateList: List<Template> = remember(templateJson) {
+        runCatching { Templates(templateJson).values }.getOrDefault(emptyList())
     }
 
     NavHost(
@@ -81,9 +77,6 @@ fun AppNavHost(
         }
         composable<AppRoute.Settings> {
             val context = androidx.compose.ui.platform.LocalContext.current
-            val templateJson = remember(sparseArray) {
-                sparseArray?.get(me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES)
-            }
             SettingsScreen(
                 rootSpJson = rootSpJson,
                 onTemplatesClick = { navController.navigate(AppRoute.Templates) },
