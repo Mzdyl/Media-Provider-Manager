@@ -67,7 +67,7 @@ fun AppListTopBar(
                     onDismissRequest = { showSortMenu = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.sort_by_name)) },
+                        text = { Text(stringResource(R.string.menu_sort_by_app_name_title)) },
                         onClick = {
                             RootPreferences.sortByFlowable.value = RootPreferences.SORT_BY_APP_NAME
                             showSortMenu = false
@@ -80,7 +80,7 @@ fun AppListTopBar(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.sort_by_update_time)) },
+                        text = { Text(stringResource(R.string.menu_sort_by_update_time_title)) },
                         onClick = {
                             RootPreferences.sortByFlowable.value = RootPreferences.SORT_BY_UPDATE_TIME
                             showSortMenu = false

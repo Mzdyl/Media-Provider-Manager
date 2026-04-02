@@ -35,7 +35,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BinderViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
     // Lazy initialization to avoid blocking app startup
     private val binder: IBinder? by lazy {

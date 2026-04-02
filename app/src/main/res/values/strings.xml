@@ -176,8 +176,6 @@
     <string name="restore_fail_invalid">Restore failed: no valid JSON rules in clipboard</string>
     <string name="about_load_error">Failed to load README: %s</string>
     <string name="open_drawer">Open navigation drawer</string>
-    <string name="sort_by_name">App name</string>
-    <string name="sort_by_update_time">Update time</string>
     <string name="back">Back</string>
     <string name="confirm">OK</string>
     <string name="cancel">Cancel</string>

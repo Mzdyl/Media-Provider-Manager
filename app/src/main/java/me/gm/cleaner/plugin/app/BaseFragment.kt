@@ -17,7 +17,6 @@
 package me.gm.cleaner.plugin.app
 
 import android.content.pm.ActivityInfo
-import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
@@ -36,9 +35,8 @@ abstract class BaseFragment : Fragment() {
         get() = activity?.findViewById(R.id.toolbar_container)
     protected var liftOnScrollTargetView: WeakReference<View>? = null
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
+    override fun onViewCreated(view: View, savedInstanceState: android.os.Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         appBarLayout?.setLiftOnScrollTargetView(liftOnScrollTargetView?.get())
     }
 

@@ -32,7 +32,10 @@ data class MediaProviderRecord(
     @ColumnInfo(name = "time_millis") val timeMillis: Long,
     @ColumnInfo(name = "package_name") val packageName: String,
     @ColumnInfo(name = "match") val match: Int,
-    @ColumnInfo(name = "operation") @MediaProviderOperation val operation: Int,
+    @ColumnInfo(name = "operation")
+    @param:MediaProviderOperation
+    @field:MediaProviderOperation
+    val operation: Int,
     @ColumnInfo(name = "data") val data: List<String>,
     @ColumnInfo(name = "mime_type") val mimeType: List<String>,
     @ColumnInfo(name = "intercepted") val intercepted: List<Boolean>,
@@ -112,10 +115,10 @@ abstract class MediaProviderRecordDatabase : RoomDatabase() {
 }
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(_db: SupportSQLiteDatabase) {
-        _db.execSQL("DELETE FROM `MediaProviderQueryRecord`")
-        _db.execSQL("DELETE FROM `MediaProviderInsertRecord`")
-        _db.execSQL("DELETE FROM `MediaProviderDeleteRecord`")
-        _db.execSQL("CREATE TABLE IF NOT EXISTS `MediaProviderRecord` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_millis` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `match` INTEGER NOT NULL, `operation` INTEGER NOT NULL, `data` TEXT NOT NULL, `mime_type` TEXT NOT NULL, `intercepted` TEXT NOT NULL)")
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM `MediaProviderQueryRecord`")
+        db.execSQL("DELETE FROM `MediaProviderInsertRecord`")
+        db.execSQL("DELETE FROM `MediaProviderDeleteRecord`")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `MediaProviderRecord` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_millis` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `match` INTEGER NOT NULL, `operation` INTEGER NOT NULL, `data` TEXT NOT NULL, `mime_type` TEXT NOT NULL, `intercepted` TEXT NOT NULL)")
     }
 }

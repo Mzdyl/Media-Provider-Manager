@@ -29,8 +29,8 @@ object ListConverter {
     @TypeConverter
     fun fromString(value: String?): List<String>? {
         val list = Template.GSON.fromJson<List<String?>?>(value, stringListType) ?: return null
-        return if (list.isEmpty() || list.any { it == null }) null
-        else list as List<String>?
+        val sanitized = list.filterNotNull()
+        return sanitized.takeIf { it.isNotEmpty() && it.size == list.size }
     }
 
     @TypeConverter

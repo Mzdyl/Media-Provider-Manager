@@ -74,7 +74,7 @@ fun Context.materialDialogBackgroundDrawable(): MaterialShapeDrawable {
         val dialogCornerRadiusValue = TypedValue()
         theme.resolveAttribute(android.R.attr.dialogCornerRadius, dialogCornerRadiusValue, true)
         val dialogCornerRadius = dialogCornerRadiusValue.getDimension(resources.displayMetrics)
-        if (dialogCornerRadiusValue.type === TypedValue.TYPE_DIMENSION && dialogCornerRadius >= 0) {
+        if (dialogCornerRadiusValue.type == TypedValue.TYPE_DIMENSION && dialogCornerRadius >= 0) {
             materialShapeDrawable.setCornerSize(dialogCornerRadius)
         }
     }

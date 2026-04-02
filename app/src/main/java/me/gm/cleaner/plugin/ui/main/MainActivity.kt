@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.outlined.History
@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -115,7 +114,9 @@ fun MainScreen() {
         gesturesEnabled = isTopLevel,
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(
+                modifier = Modifier.widthIn(max = 280.dp),
+            ) {
                 DrawerHeader(binderViewModel = binderViewModel)
                 var lastSection: Int? = null
                 drawerItems.forEach { item ->
@@ -124,9 +125,9 @@ fun MainScreen() {
                         Text(
                             text = stringResource(item.section),
                             modifier = Modifier.padding(
-                                start = 28.dp,
-                                end = 28.dp,
-                                top = 12.dp,
+                                start = 24.dp,
+                                end = 24.dp,
+                                top = 8.dp,
                                 bottom = 4.dp,
                             ),
                             style = MaterialTheme.typography.labelLarge,
@@ -160,9 +161,7 @@ fun MainScreen() {
                                 else -> R.id.applist_fragment
                             }
                         },
-                        modifier = Modifier.padding(
-                            NavigationDrawerItemDefaults.ItemPadding
-                        ),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
                 }
             }
@@ -193,26 +192,26 @@ private fun DrawerHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 18.dp, vertical = 20.dp),
     ) {
         Image(
             painter = painterResource(R.drawable.ic_outline_apps_24),
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(36.dp),
         )
-        Spacer(modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.size(12.dp))
         Text(
             text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.titleLarge,
         )
-        Spacer(modifier = Modifier.size(8.dp))
+        Spacer(modifier = Modifier.size(6.dp))
         StatusBadge(
             text = if (isActive) stringResource(R.string.active) else stringResource(R.string.not_active),
             icon = if (isActive) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
             positive = isActive,
         )
         if (moduleVersion > 0) {
-            Spacer(modifier = Modifier.size(12.dp))
+            Spacer(modifier = Modifier.size(10.dp))
             Text(
                 text = stringResource(R.string.module_version, moduleVersion),
                 style = MaterialTheme.typography.bodySmall,

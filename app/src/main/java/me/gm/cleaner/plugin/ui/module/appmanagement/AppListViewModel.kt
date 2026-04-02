@@ -22,9 +22,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.dao.RootPreferences
@@ -41,76 +41,73 @@ class AppListViewModel(
 ) : AndroidViewModel(application) {
     private val _isSearchingFlow = MutableStateFlow(false)
     var isSearching: Boolean by _isSearchingFlow
+    val isSearchingFlow: StateFlow<Boolean> = _isSearchingFlow.asStateFlow()
     private val _queryTextFlow = MutableStateFlow("")
     var queryText: String by _queryTextFlow
+    val queryTextFlow: StateFlow<String> = _queryTextFlow.asStateFlow()
     val isLoading: Boolean
         get() = _appsFlow.value is AppListState.Loading
     private val _appsFlow = MutableStateFlow<AppListState>(AppListState.Loading(0))
-    
-    // Cache for preferences flows to avoid repeated access
+
     private val isHideSystemAppFlow = RootPreferences.isHideSystemAppFlowable.asFlow()
     private val sortByFlow = RootPreferences.sortByFlowable.asFlow()
     private val ruleCountFlow = RootPreferences.ruleCountFlowable.asFlow()
-    
-    // Store the combine job for cancellation
-    private var appsCombineJob: Job? = null
-    
-    val appsFlow =
+    private val filtersFlow =
         combine(
-            _appsFlow,
             _isSearchingFlow,
             _queryTextFlow,
             isHideSystemAppFlow,
             sortByFlow,
             ruleCountFlow,
-        ) { apps, isSearching, queryText, isHideSystemApp, sortBy, ruleCount ->
+        ) { isSearching, queryText, isHideSystemApp, sortBy, ruleCount ->
+            AppListFilterState(
+                isSearching = isSearching,
+                queryText = queryText.trim(),
+                isHideSystemApp = isHideSystemApp,
+                sortBy = sortBy,
+                ruleCount = ruleCount,
+            )
+        }
+
+    val appsFlow =
+        combine(_appsFlow, filtersFlow) { apps, filters ->
             when (apps) {
                 is AppListState.Loading -> AppListState.Loading(
                     progress = apps.progress,
                     list = apps.list?.let {
-                        transformList(it, isSearching, queryText, isHideSystemApp, sortBy, ruleCount)
+                        transformList(it, filters)
                     },
                 )
                 is AppListState.Done -> AppListState.Done(
-                    transformList(
-                        apps.list,
-                        isSearching,
-                        queryText,
-                        isHideSystemApp,
-                        sortBy,
-                        ruleCount,
-                    )
+                    transformList(apps.list, filters)
                 )
             }
         }
 
     private fun transformList(
         list: List<AppListModel>,
-        isSearching: Boolean,
-        queryText: String,
-        isHideSystemApp: Boolean,
-        sortBy: Int,
-        ruleCount: Boolean,
+        filters: AppListFilterState,
     ): List<AppListModel> {
         var sequence = list.asSequence()
-        if (isHideSystemApp) {
+        if (filters.isHideSystemApp) {
             sequence = sequence.filter {
                 val flags = it.packageInfo.applicationInfo?.flags ?: 0
-                flags and ApplicationInfo.FLAG_SYSTEM == 0
+                val systemFlags = ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+                flags and systemFlags == 0
             }
         }
-        if (isSearching) {
+        if (filters.isSearching && filters.queryText.isNotBlank()) {
             sequence = sequence.filter {
-                it.label.contains(queryText, true) ||
-                    it.packageInfo.packageName.contains(queryText, true)
+                it.label.contains(filters.queryText, true) ||
+                    it.packageInfo.packageName.contains(filters.queryText, true)
             }
         }
-        sequence = when (sortBy) {
+        sequence = when (filters.sortBy) {
             SORT_BY_APP_NAME -> sequence.sortedWith(collatorComparator { it.label })
             SORT_BY_UPDATE_TIME -> sequence.sortedBy { -it.packageInfo.lastUpdateTime }
             else -> throw IllegalArgumentException()
         }
-        if (ruleCount) {
+        if (filters.ruleCount) {
             sequence = sequence.sortedBy { -it.ruleCount }
         }
         return sequence.toList()
@@ -155,12 +152,6 @@ class AppListViewModel(
     init {
         load()
     }
-    
-    override fun onCleared() {
-        super.onCleared()
-        // Cancel combine job to prevent memory leaks
-        appsCombineJob?.cancel()
-    }
 
     companion object {
         fun provideFactory(
@@ -174,6 +165,14 @@ class AppListViewModel(
     }
 }
 
+private data class AppListFilterState(
+    val isSearching: Boolean,
+    val queryText: String,
+    val isHideSystemApp: Boolean,
+    val sortBy: Int,
+    val ruleCount: Boolean,
+)
+
 sealed class AppListState {
     data class Loading(
         val progress: Int,
@@ -181,23 +180,4 @@ sealed class AppListState {
     ) : AppListState()
 
     data class Done(val list: List<AppListModel>) : AppListState()
-}
-
-fun <T1, T2, T3, T4, T5, T6, R> combine(
-    flow: Flow<T1>, flow2: Flow<T2>, flow3: Flow<T3>, flow4: Flow<T4>, flow5: Flow<T5>,
-    flow6: Flow<T6>, transform: suspend (T1, T2, T3, T4, T5, T6) -> R
-): Flow<R> = combine(flow, flow2, flow3, flow4, flow5, flow6) { args: Array<*> ->
-    transform(
-        args[0] as T1, args[1] as T2, args[2] as T3, args[3] as T4, args[4] as T5, args[5] as T6
-    )
-}
-
-fun <T1, T2, T3, T4, T5, T6, T7, R> combine(
-    flow: Flow<T1>, flow2: Flow<T2>, flow3: Flow<T3>, flow4: Flow<T4>, flow5: Flow<T5>,
-    flow6: Flow<T6>, flow7: Flow<T7>, transform: suspend (T1, T2, T3, T4, T5, T6, T7) -> R
-): Flow<R> = combine(flow, flow2, flow3, flow4, flow5, flow6, flow7) { args: Array<*> ->
-    transform(
-        args[0] as T1, args[1] as T2, args[2] as T3, args[3] as T4, args[4] as T5, args[5] as T6,
-        args[6] as T7
-    )
 }

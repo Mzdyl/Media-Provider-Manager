@@ -26,30 +26,31 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.model.SpIdentifiers
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
+import me.gm.cleaner.plugin.ui.module.BinderViewModel
+import me.gm.cleaner.plugin.ui.module.appmanagement.AppListModel
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListState
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListViewModel
-import me.gm.cleaner.plugin.ui.module.appmanagement.AppListModel
-import me.gm.cleaner.plugin.ui.module.BinderViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,19 +60,27 @@ fun AppListScreen(
     onAppClick: (packageName: String, label: String) -> Unit,
 ) {
     val context = LocalContext.current
-    val viewModel = remember(binderViewModel) {
-        AppListViewModel(
+    val viewModel: AppListViewModel = viewModel(
+        factory = AppListViewModel.provideFactory(
             context.applicationContext as Application,
             binderViewModel,
-        )
-    }
+        ),
+    )
     val appsState by viewModel.appsFlow.collectAsStateWithLifecycle(initialValue = null)
+    val isSearching by viewModel.isSearchingFlow.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.queryTextFlow.collectAsStateWithLifecycle()
     val showRuleCount by RootPreferences.ruleCountFlowable.asFlow().collectAsStateWithLifecycle(
         initialValue = RootPreferences.ruleCountFlowable.value
     )
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearching by remember { mutableStateOf(false) }
+    val remoteSpCache by binderViewModel.remoteSpCacheLiveData.observeAsState()
+    val templateSp = remoteSpCache?.get(SpIdentifiers.TEMPLATE_PREFERENCES)
     val pullToRefreshState = rememberPullToRefreshState()
+
+    LaunchedEffect(templateSp) {
+        if (templateSp != null && !viewModel.isLoading) {
+            viewModel.update()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,11 +88,12 @@ fun AppListScreen(
                 onOpenDrawer = onOpenDrawer,
                 searchQuery = searchQuery,
                 isSearching = isSearching,
-                onSearchQueryChange = { searchQuery = it },
+                onSearchQueryChange = { viewModel.queryText = it },
                 onSearchToggle = {
-                    isSearching = !isSearching
-                    if (!isSearching) {
-                        searchQuery = ""
+                    val nextValue = !isSearching
+                    viewModel.isSearching = nextValue
+                    if (!nextValue) {
+                        viewModel.queryText = ""
                     }
                 },
                 onRefresh = { viewModel.load() },
@@ -130,8 +140,6 @@ fun AppListScreen(
                     AppListContent(
                         state = state,
                         paddingValues = paddingValues,
-                        isSearching = isSearching,
-                        searchQuery = searchQuery,
                         showRuleCount = showRuleCount,
                         pullToRefreshState = pullToRefreshState,
                         onRefresh = { viewModel.load() },
@@ -144,8 +152,6 @@ fun AppListScreen(
                 AppListContent(
                     state = state,
                     paddingValues = paddingValues,
-                    isSearching = isSearching,
-                    searchQuery = searchQuery,
                     showRuleCount = showRuleCount,
                     pullToRefreshState = pullToRefreshState,
                     onRefresh = { viewModel.load() },
@@ -161,22 +167,15 @@ fun AppListScreen(
 private fun AppListContent(
     state: AppListState,
     paddingValues: PaddingValues,
-    isSearching: Boolean,
-    searchQuery: String,
     showRuleCount: Boolean,
     pullToRefreshState: androidx.compose.material3.pulltorefresh.PullToRefreshState,
     onRefresh: () -> Unit,
     onAppClick: (packageName: String, label: String) -> Unit,
 ) {
-    val baseList = when (state) {
+    val displayedList = when (state) {
         is AppListState.Loading -> state.list
         is AppListState.Done -> state.list
     }.orEmpty()
-    val filteredList = baseList.filter { app ->
-        if (!isSearching || searchQuery.isBlank()) true
-        else app.label.contains(searchQuery, ignoreCase = true) ||
-            app.packageInfo.packageName.contains(searchQuery, ignoreCase = true)
-    }
     PullToRefreshBox(
         isRefreshing = state is AppListState.Loading && state.list != null,
         onRefresh = onRefresh,
@@ -185,7 +184,7 @@ private fun AppListContent(
             .padding(paddingValues),
         state = pullToRefreshState,
     ) {
-        if (filteredList.isEmpty()) {
+        if (displayedList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -204,7 +203,7 @@ private fun AppListContent(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item {
+                item(contentType = "summary") {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -228,7 +227,7 @@ private fun AppListContent(
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
                                 Text(
-                                    text = "${filteredList.size} / ${baseList.size}",
+                                    text = "${displayedList.size}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
@@ -236,7 +235,11 @@ private fun AppListContent(
                         }
                     }
                 }
-                items(filteredList, key = { it.packageInfo.packageName }) { app ->
+                items(
+                    items = displayedList,
+                    key = { it.packageInfo.packageName },
+                    contentType = { "app" },
+                ) { app ->
                     AppListItem(
                         app = app,
                         showRuleCount = showRuleCount,
@@ -308,7 +311,7 @@ private fun AppIcon(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val icon = remember(packageInfo.packageName) {
+    val icon: android.graphics.drawable.Drawable? = remember(packageInfo.packageName) {
         try {
             packageInfo.applicationInfo?.loadIcon(context.packageManager)
         } catch (_: Exception) {
@@ -316,18 +319,8 @@ private fun AppIcon(
         }
     }
     if (icon != null) {
-        val bitmap = remember(icon) {
-            android.graphics.Bitmap.createBitmap(
-                icon.intrinsicWidth.coerceAtLeast(1),
-                icon.intrinsicHeight.coerceAtLeast(1),
-                android.graphics.Bitmap.Config.ARGB_8888,
-            ).also { bitmap ->
-                icon.setBounds(0, 0, bitmap.width, bitmap.height)
-                icon.draw(android.graphics.Canvas(bitmap))
-            }
-        }
         Image(
-            painter = BitmapPainter(bitmap.asImageBitmap()),
+            painter = rememberDrawablePainter(drawable = icon),
             contentDescription = null,
             modifier = modifier,
         )
