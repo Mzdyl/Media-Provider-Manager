@@ -1,9 +1,5 @@
 package me.gm.cleaner.plugin.ui.main
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +39,6 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
@@ -52,7 +47,6 @@ import me.gm.cleaner.plugin.ui.navigation.AppNavHost
 import me.gm.cleaner.plugin.ui.navigation.topLevelDestinations
 import me.gm.cleaner.plugin.ui.components.StatusBadge
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
-import me.gm.cleaner.plugin.ui.theme.MediaProviderManagerTheme
 
 private fun mapOldDestinationIdToRoute(id: Int): Any? = when (id) {
     R.id.applist_fragment -> AppRoute.AppList
@@ -60,20 +54,6 @@ private fun mapOldDestinationIdToRoute(id: Int): Any? = when (id) {
     R.id.settings_fragment -> AppRoute.Settings
     R.id.about_fragment -> AppRoute.About
     else -> null
-}
-
-@AndroidEntryPoint
-class MainActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            MediaProviderManagerTheme {
-                MainScreen()
-            }
-        }
-    }
 }
 
 data class DrawerItem(
@@ -183,10 +163,19 @@ private fun DrawerHeader(
 ) {
     var isActive by remember { mutableStateOf(false) }
     var moduleVersion by remember { mutableStateOf(0) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    androidx.compose.runtime.LaunchedEffect(binderViewModel) {
+    suspend fun checkActivation() {
+        isRefreshing = true
+        binderViewModel.refreshBinder()
         isActive = binderViewModel.pingBinder()
         moduleVersion = binderViewModel.moduleVersion
+        isRefreshing = false
+    }
+
+    androidx.compose.runtime.LaunchedEffect(binderViewModel) {
+        checkActivation()
     }
 
     Column(
@@ -209,6 +198,11 @@ private fun DrawerHeader(
             text = if (isActive) stringResource(R.string.active) else stringResource(R.string.not_active),
             icon = if (isActive) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
             positive = isActive,
+            onClick = {
+                if (!isActive && !isRefreshing) {
+                    scope.launch { checkActivation() }
+                }
+            }
         )
         if (moduleVersion > 0) {
             Spacer(modifier = Modifier.size(10.dp))

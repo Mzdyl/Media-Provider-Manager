@@ -129,6 +129,7 @@ fun StatusBadge(
     icon: ImageVector,
     positive: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val containerColor = if (positive) {
         MaterialTheme.colorScheme.primaryContainer
@@ -140,12 +141,8 @@ fun StatusBadge(
     } else {
         MaterialTheme.colorScheme.onErrorContainer
     }
-    Surface(
-        modifier = modifier,
-        color = containerColor,
-        contentColor = contentColor,
-        shape = MaterialTheme.shapes.large,
-    ) {
+    
+    val content = @Composable {
         androidx.compose.foundation.layout.Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -161,6 +158,27 @@ fun StatusBadge(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
             )
+        }
+    }
+    
+    if (onClick != null) {
+        Surface(
+            modifier = modifier,
+            onClick = onClick,
+            color = containerColor,
+            contentColor = contentColor,
+            shape = MaterialTheme.shapes.large,
+        ) {
+            content()
+        }
+    } else {
+        Surface(
+            modifier = modifier,
+            color = containerColor,
+            contentColor = contentColor,
+            shape = MaterialTheme.shapes.large,
+        ) {
+            content()
         }
     }
 }

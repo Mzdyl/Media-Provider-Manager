@@ -37,20 +37,45 @@ import javax.inject.Inject
 class BinderViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
-    // Lazy initialization to avoid blocking app startup
-    private val binder: IBinder? by lazy {
-        runCatching {
-            context.contentResolver.query(
-                MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
-            )?.use {
-                it.extras.getBinder(BINDER_EXTRA_KEY)
+    // Mutable state to allow refresh after module activation
+    private var _binder: IBinder? = null
+    private var binderQueried = false
+    
+    private val binder: IBinder?
+        get() {
+            if (!binderQueried) {
+                binderQueried = true
+                _binder = queryBinder()
             }
-        }.getOrNull()
+            return _binder
+        }
+    
+    private fun queryBinder(): IBinder? = runCatching {
+        context.contentResolver.query(
+            MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
+        )?.use {
+            it.extras.getBinder(BINDER_EXTRA_KEY)
+        }
+    }.getOrNull()
+    
+    /**
+     * Refresh binder connection. Call this when user activates the Xposed module
+     * and wants to verify the connection without restarting the app.
+     */
+    fun refreshBinder() {
+        _binder = queryBinder()
+        // Clear cached service to force re-resolution
+        _service = null
     }
     
-    private val service: IManagerService? by lazy {
-        binder?.let { IManagerService.Stub.asInterface(it) }
-    }
+    private var _service: IManagerService? = null
+    private val service: IManagerService?
+        get() {
+            if (_service == null) {
+                _service = binder?.let { IManagerService.Stub.asInterface(it) }
+            }
+            return _service
+        }
     
     private val _remoteSpCacheLiveData = MutableLiveData(SparseArray<String>())
     val remoteSpCacheLiveData: LiveData<SparseArray<String>>

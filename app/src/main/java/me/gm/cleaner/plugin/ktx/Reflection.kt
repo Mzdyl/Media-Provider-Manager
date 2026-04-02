@@ -20,9 +20,3 @@ inline fun <reified T> Any.getObjectField(sourceCls: Class<*> = javaClass) =
     sourceCls.declaredFields
         .first { it.type == T::class.java }
         .apply { isAccessible = true }[this] as T
-
-inline fun <reified T> Any.setObjectField(value: T, sourceCls: Class<*> = javaClass) {
-    sourceCls.declaredFields
-        .first { it.type == T::class.java }
-        .apply { isAccessible = true }[this] = value
-}
