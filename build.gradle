@@ -1,36 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
-buildscript {
-    ext {
-        hiltVersion = '2.51'
-        kotlinVersion = '1.9.23'
-        navigationVersion = '2.7.7'
-    }
-    repositories {
-        jcenter()
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath "androidx.navigation:navigation-safe-args-gradle-plugin:$navigationVersion"
-        classpath 'com.android.tools.build:gradle:8.4.0'
-        classpath "com.google.dagger:hilt-android-gradle-plugin:$hiltVersion"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
-    }
-}
-
-plugins {
-    // https://github.com/google/ksp/releases
-    id 'com.google.devtools.ksp' version '1.9.23-1.0.20' apply false
-}
-
-allprojects {
-    repositories {
-        jcenter()
-        google()
-        mavenCentral()
-        maven { url 'https://api.xposed.info/' }
-        maven { url 'https://jitpack.io' }
-    }
+ext {
+    hiltVersion = '2.59.2'
+    navigationVersion = '2.9.7'
 }
 
 task clean(type: Delete) {

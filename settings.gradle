@@ -1,2 +1,26 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'com.android.application' version '9.0.1'
+        id 'com.google.devtools.ksp' version '2.3.6'
+        id 'com.google.dagger.hilt.android' version '2.59.2'
+        id 'androidx.navigation.safeargs.kotlin' version '2.9.7'
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://api.xposed.info/' }
+        maven { url 'https://jitpack.io' }
+    }
+}
+
 include ':app'
 rootProject.name = "Media Provider Manager"
