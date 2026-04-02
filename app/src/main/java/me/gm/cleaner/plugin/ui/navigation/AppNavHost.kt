@@ -74,7 +74,12 @@ fun AppNavHost(
                 templates = templateList,
                 onNavigateBack = { navController.popBackStack() },
                 onCreateTemplate = {
-                    navController.navigate(AppRoute.CreateTemplate())
+                    navController.navigate(
+                        AppRoute.CreateTemplate(
+                            templateName = route.label ?: route.packageName,
+                            packageNames = listOf(route.packageName),
+                        )
+                    )
                 },
                 onEditTemplate = { template ->
                     navController.navigate(
@@ -121,6 +126,13 @@ fun AppNavHost(
                 templates = templateList,
                 onNavigateBack = { navController.popBackStack() },
                 onCreateTemplate = { navController.navigate(AppRoute.CreateTemplate()) },
+                onDeleteTemplate = { template ->
+                    binderViewModel.writeTemplateSp(
+                        Template.GSON.toJson(
+                            templateList.filterNot { it.templateName == template.templateName }
+                        )
+                    )
+                },
                 onEditTemplate = { template ->
                     navController.navigate(
                         AppRoute.CreateTemplate(

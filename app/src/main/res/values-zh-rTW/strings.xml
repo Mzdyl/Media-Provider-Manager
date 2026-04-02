@@ -89,6 +89,8 @@
     <string name="add_path">新增路徑</string>
     <string name="save">儲存</string>
     <string name="quit_without_save">更改未儲存，您確定要退出嗎？</string>
+    <string name="delete_template_title">刪除模板</string>
+    <string name="delete_template_message">確定刪除模板「%1$s」嗎？</string>
 
     <!-- 媒體儲存 -->
     <string name="today">今天</string>

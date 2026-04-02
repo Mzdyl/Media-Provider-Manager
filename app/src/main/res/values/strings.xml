@@ -197,4 +197,6 @@
     <string name="applied_templates_count">Applied Templates (%d)</string>
     <string name="template_count">%d template(s)</string>
     <string name="empty_search_hint">Try another keyword or refresh the list.</string>
+    <string name="delete_template_title">Delete template</string>
+    <string name="delete_template_message">Delete template "%1$s"?</string>
 </resources>
