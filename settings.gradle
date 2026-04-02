@@ -10,6 +10,7 @@ pluginManagement {
         id 'com.google.dagger.hilt.android' version '2.59.2'
         id 'androidx.navigation.safeargs.kotlin' version '2.9.7'
         id 'org.jetbrains.kotlin.plugin.compose' version '2.3.0'
+        id 'org.jetbrains.kotlin.plugin.serialization' version '2.3.0'
     }
 }
 
