@@ -59,7 +59,11 @@ class BinderViewModel @Inject constructor(
         get() = _remoteSpCacheLiveData.value!!
 
     fun notifyRemoteSpChanged() {
-        _remoteSpCacheLiveData.postValue(remoteSpCache)
+        val copy = SparseArray<String>(remoteSpCache.size())
+        for (i in 0 until remoteSpCache.size()) {
+            copy.put(remoteSpCache.keyAt(i), remoteSpCache.valueAt(i))
+        }
+        _remoteSpCacheLiveData.postValue(copy)
     }
 
     fun pingBinder(): Boolean = binder?.pingBinder() == true
