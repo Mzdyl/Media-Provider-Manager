@@ -20,7 +20,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Resources
 import androidx.core.content.edit
-import androidx.preference.PreferenceManager
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.util.FlowableSharedPreferences
 import java.util.concurrent.CopyOnWriteArrayList
@@ -33,13 +32,13 @@ object RootPreferences {
     const val SORT_BY_SIZE = 2
     private lateinit var resources: Resources
     private lateinit var defaultSp: SharedPreferences
-    
+
     // Track all FlowableSharedPreferences instances for cleanup
     private val flowablePrefs = CopyOnWriteArrayList<FlowableSharedPreferences<*>>()
 
     fun init(context: Context) {
         resources = context.resources
-        defaultSp = PreferenceManager.getDefaultSharedPreferences(context)
+        defaultSp = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
     }
     
     /**
