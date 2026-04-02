@@ -258,10 +258,12 @@ abstract class ManagerService : IManagerService.Stub() {
     }
 
     override fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
+        enforceCallerPermission()
         observers.register(observer)
     }
 
     override fun unregisterMediaChangeObserver(observer: IMediaChangeObserver) {
+        enforceCallerPermission()
         observers.unregister(observer)
     }
 
