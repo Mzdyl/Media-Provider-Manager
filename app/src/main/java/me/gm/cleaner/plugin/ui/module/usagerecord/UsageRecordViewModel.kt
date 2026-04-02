@@ -168,7 +168,8 @@ class UsageRecordViewModel(
             isHideQueryFlow,
             isHideInsertFlow,
             isHideDeleteFlow,
-        ) { isHideQuery, isHideInsert, isHideDelete ->
+            _selectedTimeFlow,
+        ) { isHideQuery, isHideInsert, isHideDelete, selectedTime ->
             val (start, end) = calculateSelectedTime(selectedTime)
             load(start, end, isHideQuery, isHideInsert, isHideDelete)
         }.collect {
