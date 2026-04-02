@@ -84,8 +84,8 @@ fun AppNavHost(
                     navController.navigate(
                         AppRoute.CreateTemplate(
                             templateName = template.templateName,
-                            hookOperation = template.hookOperation.toList(),
-                            packageNames = template.applyToApp?.map { it.toString() },
+                            hookOperation = template.hookOperation,
+                            packageNames = template.applyToApp,
                             permittedMediaTypes = template.permittedMediaTypes?.map { it.toString() },
                         )
                     )
@@ -101,6 +101,7 @@ fun AppNavHost(
                 permittedMediaTypes = route.permittedMediaTypes,
                 onNavigateBack = { navController.popBackStack() },
                 onSave = { navController.popBackStack() },
+                binderViewModel = binderViewModel,
             )
         }
         composable<AppRoute.About> {
