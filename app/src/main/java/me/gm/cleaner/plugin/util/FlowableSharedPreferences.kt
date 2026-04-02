@@ -20,7 +20,6 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.lang.ref.WeakReference
 
 class FlowableSharedPreferences<T>(
     private val preferences: SharedPreferences,
@@ -58,29 +57,22 @@ class FlowableSharedPreferences<T>(
 
     fun asFlow(): StateFlow<T> = _preferenceFlow
 
-    // Use WeakReference to avoid memory leak
-    private val listenerRef: WeakReference<SharedPreferences.OnSharedPreferenceChangeListener> =
-        WeakReference(SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == this.key) {
-                _preferenceFlow.value = load()
-            }
-        })
+    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+        if (changedKey == key) {
+            _preferenceFlow.value = load()
+        }
+    }
 
     private var isRegistered = true
 
     init {
-        listenerRef.get()?.let { preferences.registerOnSharedPreferenceChangeListener(it) }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
     }
 
     fun unregister() {
         if (isRegistered) {
-            listenerRef.get()?.let { preferences.unregisterOnSharedPreferenceChangeListener(it) }
-            listenerRef.clear()
+            preferences.unregisterOnSharedPreferenceChangeListener(listener)
             isRegistered = false
         }
-    }
-
-    protected fun finalize() {
-        unregister()
     }
 }
