@@ -130,4 +130,5 @@
     <string name="about_load_error">載入 README 失敗：%s</string>
     <string name="hide_system_apps">隱藏系統應用</string>
     <string name="module_activated">模組已啟動，請重啟對應作用域以生效。</string>
+    <string name="restart_scope_hint">已在框架中啟動模組，請重啟作用域應用（如：媒體儲存設備）以生效。</string>
 </resources>

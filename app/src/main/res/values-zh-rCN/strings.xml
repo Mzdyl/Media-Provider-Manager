@@ -136,6 +136,7 @@
     <string name="hide_system_apps">隐藏系统应用</string>
     <string name="module_version">模块 v%d</string>
     <string name="module_activated">模块已激活，请重启对应作用域应用以生效。</string>
+    <string name="restart_scope_hint">已在框架中激活模块，请重启作用域应用（如：媒体存储设备）以生效。</string>
     <string name="no_apps_found">没有找到应用</string>
     <string name="no_usage_records_found">没有找到使用记录</string>
     <string name="no_templates">还没有模板</string>
