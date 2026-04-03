@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.google.android.material.color.DynamicColors
 import dagger.hilt.android.HiltAndroidApp
 import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.util.ModuleActivationStore
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 @HiltAndroidApp
@@ -38,6 +39,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        ModuleActivationStore.resetAppProcessHooked(this)
         RootPreferences.init(createDeviceProtectedStorageContext())
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         DynamicColors.applyToActivitiesIfAvailable(this)

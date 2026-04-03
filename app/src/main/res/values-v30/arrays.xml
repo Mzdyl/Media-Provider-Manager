@@ -18,6 +18,7 @@
 
 <resources xmlns:tools="http://schemas.android.com/tools">
     <array name="recommend_package" tools:ignore="InconsistentArrays">
+        <item>me.gm.cleaner.plugin</item>
         <item>com.android.providers.media.module</item>
         <item>com.android.providers.downloads</item>
         <item>com.google.android.providers.media.module</item>

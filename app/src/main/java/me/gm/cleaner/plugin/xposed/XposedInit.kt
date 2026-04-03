@@ -16,6 +16,7 @@
 
 package me.gm.cleaner.plugin.xposed
 
+import android.app.Application
 import android.content.ContentProvider
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -25,7 +26,9 @@ import android.content.res.Resources
 import android.provider.MediaStore
 import de.robv.android.xposed.*
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
+import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.util.L
+import me.gm.cleaner.plugin.util.ModuleActivationStore
 import me.gm.cleaner.plugin.xposed.hooker.DeleteHooker
 import me.gm.cleaner.plugin.xposed.hooker.FileHooker
 import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
@@ -33,6 +36,24 @@ import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import java.io.File
 
 class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteInit {
+
+    @Throws(Throwable::class)
+    private fun onModuleAppLoaded(lpparam: LoadPackageParam) {
+        XposedHelpers.findAndHookMethod(
+            Application::class.java,
+            "onCreate",
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val application = param.thisObject as? Application ?: return
+                    if (application.packageName != BuildConfig.APPLICATION_ID) {
+                        return
+                    }
+                    ModuleActivationStore.markAppProcessHooked(application)
+                    L.d("Marked module app process as hooked")
+                }
+            }
+        )
+    }
 
     @Throws(Throwable::class)
     private fun onMediaProviderLoaded(lpparam: LoadPackageParam, context: Context) {
@@ -103,6 +124,10 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
 
     @Throws(Throwable::class)
     override fun handleLoadPackage(lpparam: LoadPackageParam) {
+        if (lpparam.packageName == BuildConfig.APPLICATION_ID) {
+            onModuleAppLoaded(lpparam)
+            return
+        }
         if (lpparam.appInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0) {
             return
         }

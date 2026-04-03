@@ -19,10 +19,11 @@
     <string name="about">关于</string>
 
     <!-- 模块 -->
-    <string name="guide_active">在 Xposed 框架中激活模块并重启系统才能使用此功能</string>
+    <string name="guide_active">请在 Xposed 框架中激活模块，并重启本应用及作用域应用以生效。</string>
     <string name="not_active">未激活</string>
     <string name="restart_system">重启系统以升级模块</string>
-    <string name="active">已激活</string>
+    <string name="active">已激活并生效</string>
+    <string name="active_pending_scope_restart">已激活，待重启作用域</string>
     <string name="loading">加载中…</string>
     <string name="enabled_rule_count">已启用 %d 条规则</string>
     <string name="query_times">查询 %d 次</string>

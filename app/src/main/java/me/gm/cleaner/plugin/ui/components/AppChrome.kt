@@ -149,19 +149,17 @@ fun PreferenceGroup(
 fun StatusBadge(
     text: String,
     icon: ImageVector,
-    positive: Boolean,
+    tone: StatusBadgeTone,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
-    val containerColor = if (positive) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.errorContainer
-    }
-    val contentColor = if (positive) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onErrorContainer
+    val (containerColor, contentColor) = when (tone) {
+        StatusBadgeTone.Positive -> MaterialTheme.colorScheme.primaryContainer to
+            MaterialTheme.colorScheme.onPrimaryContainer
+        StatusBadgeTone.Warning -> MaterialTheme.colorScheme.tertiaryContainer to
+            MaterialTheme.colorScheme.onTertiaryContainer
+        StatusBadgeTone.Negative -> MaterialTheme.colorScheme.errorContainer to
+            MaterialTheme.colorScheme.onErrorContainer
     }
     
     val content = @Composable {
@@ -203,6 +201,12 @@ fun StatusBadge(
             content()
         }
     }
+}
+
+enum class StatusBadgeTone {
+    Positive,
+    Warning,
+    Negative,
 }
 
 @Composable

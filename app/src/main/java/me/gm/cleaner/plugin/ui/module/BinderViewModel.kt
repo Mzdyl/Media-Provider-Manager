@@ -82,6 +82,7 @@ class BinderViewModel @Inject constructor(
         _binder = null
         _service = null
         _binder = queryBinder()
+        binderQueried = _binder != null
         Log.d("MPM/BinderVM", "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
     }
     

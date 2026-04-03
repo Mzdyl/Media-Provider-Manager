@@ -46,15 +46,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.ui.components.StatusBadgeTone
 import me.gm.cleaner.plugin.ui.navigation.AppRoute
 import me.gm.cleaner.plugin.ui.navigation.AppNavHost
 import me.gm.cleaner.plugin.ui.navigation.topLevelDestinations
 import me.gm.cleaner.plugin.ui.components.StatusBadge
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
+import me.gm.cleaner.plugin.util.ModuleActivationStore
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -81,6 +82,12 @@ val drawerItems = listOf(
     DrawerItem(AppRoute.Settings, R.string.settings, Icons.Default.Settings, section = R.string.module),
     DrawerItem(AppRoute.About, R.string.about, Icons.Default.Info),
 )
+
+private enum class ModuleActivationState {
+    NotActive,
+    ScopeRestartRequired,
+    Active,
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -173,27 +180,36 @@ fun MainScreen() {
 private fun DrawerHeader(
     binderViewModel: BinderViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
 ) {
-    var isActive by remember { mutableStateOf(false) }
+    var activationState by remember { mutableStateOf(ModuleActivationState.NotActive) }
     var moduleVersion by remember { mutableStateOf(0) }
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var pollingJob by remember { mutableStateOf<Job?>(null) }
 
-    suspend fun checkActivation() {
+    suspend fun refreshActivationState() {
         isRefreshing = true
+        val frameworkActive = ModuleActivationStore.isAppProcessHooked(context)
         binderViewModel.refreshBinder()
-        isActive = binderViewModel.pingBinder()
-        moduleVersion = binderViewModel.moduleVersion
+        val scopeActive = binderViewModel.pingBinder()
+        activationState = when {
+            scopeActive -> ModuleActivationState.Active
+            frameworkActive -> ModuleActivationState.ScopeRestartRequired
+            else -> ModuleActivationState.NotActive
+        }
+        moduleVersion = if (scopeActive) binderViewModel.moduleVersion else 0
         isRefreshing = false
     }
 
     fun startPolling() {
-        if (pollingJob?.isActive == true) return
+        if (activationState != ModuleActivationState.ScopeRestartRequired || pollingJob?.isActive == true) {
+            return
+        }
         pollingJob = scope.launch {
-            while (isActive) {
+            while (activationState == ModuleActivationState.ScopeRestartRequired) {
+                binderViewModel.refreshBinder()
                 if (binderViewModel.pingBinder()) {
-                    isActive = true
+                    activationState = ModuleActivationState.Active
                     moduleVersion = binderViewModel.moduleVersion
                     Toast.makeText(
                         context,
@@ -209,8 +225,8 @@ private fun DrawerHeader(
     }
 
     androidx.compose.runtime.LaunchedEffect(binderViewModel) {
-        checkActivation()
-        if (!isActive) {
+        refreshActivationState()
+        if (activationState == ModuleActivationState.ScopeRestartRequired) {
             startPolling()
         }
     }
@@ -238,30 +254,65 @@ private fun DrawerHeader(
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(modifier = Modifier.size(6.dp))
+        val statusText = when (activationState) {
+            ModuleActivationState.NotActive -> stringResource(R.string.not_active)
+            ModuleActivationState.ScopeRestartRequired -> stringResource(R.string.active_pending_scope_restart)
+            ModuleActivationState.Active -> stringResource(R.string.active)
+        }
+        val statusIcon = when (activationState) {
+            ModuleActivationState.NotActive -> Icons.Default.WarningAmber
+            ModuleActivationState.ScopeRestartRequired -> Icons.Default.Info
+            ModuleActivationState.Active -> Icons.Default.CheckCircle
+        }
+        val statusTone = when (activationState) {
+            ModuleActivationState.NotActive -> StatusBadgeTone.Negative
+            ModuleActivationState.ScopeRestartRequired -> StatusBadgeTone.Warning
+            ModuleActivationState.Active -> StatusBadgeTone.Positive
+        }
         StatusBadge(
-            text = if (isActive) stringResource(R.string.active) else stringResource(R.string.not_active),
-            icon = if (isActive) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
-            positive = isActive,
+            text = statusText,
+            icon = statusIcon,
+            tone = statusTone,
             onClick = {
-                if (!isActive && !isRefreshing) {
-                    scope.launch { checkActivation() }
-                } else if (!isActive && pollingJob?.isActive != true) {
+                if (!isRefreshing) {
+                    scope.launch { refreshActivationState() }
+                }
+                if (activationState == ModuleActivationState.ScopeRestartRequired &&
+                    pollingJob?.isActive != true
+                ) {
                     startPolling()
                 }
             }
         )
-        if (!isActive) {
+        val hintText = when (activationState) {
+            ModuleActivationState.NotActive -> stringResource(R.string.guide_active)
+            ModuleActivationState.ScopeRestartRequired -> stringResource(R.string.restart_scope_hint)
+            ModuleActivationState.Active -> null
+        }
+        if (hintText != null) {
+            val hintContainerColor = when (activationState) {
+                ModuleActivationState.NotActive -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                ModuleActivationState.ScopeRestartRequired -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                ModuleActivationState.Active -> MaterialTheme.colorScheme.surface
+            }
+            val hintContentColor = when (activationState) {
+                ModuleActivationState.NotActive -> MaterialTheme.colorScheme.onErrorContainer
+                ModuleActivationState.ScopeRestartRequired -> MaterialTheme.colorScheme.onTertiaryContainer
+                ModuleActivationState.Active -> MaterialTheme.colorScheme.onSurface
+            }
             Spacer(modifier = Modifier.size(10.dp))
             ElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        if (pollingJob?.isActive != true) {
+                        if (activationState == ModuleActivationState.ScopeRestartRequired &&
+                            pollingJob?.isActive != true
+                        ) {
                             startPolling()
                         }
                     },
                 colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                    containerColor = hintContainerColor,
                 ),
             ) {
                 Row(
@@ -274,13 +325,13 @@ private fun DrawerHeader(
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        tint = hintContentColor,
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
-                        text = stringResource(R.string.restart_scope_hint),
+                        text = hintText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        color = hintContentColor,
                     )
                 }
             }

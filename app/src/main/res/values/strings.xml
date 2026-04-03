@@ -20,10 +20,11 @@
     <string name="about">About</string>
 
     <!-- Module -->
-    <string name="guide_active">Activate the module in the Xposed framework and restart the system to use this feature.</string>
+    <string name="guide_active">Activate the module in the Xposed framework, then restart this app and scoped apps to apply changes.</string>
     <string name="not_active">NOT ACTIVE</string>
     <string name="restart_system">Restart the system to upgrade the module</string>
     <string name="active">ACTIVATED</string>
+    <string name="active_pending_scope_restart">ACTIVATED, RESTART SCOPE</string>
     <string name="loading">Loading…</string>
     <string name="enabled_rule_count">%d rule(s) enabled</string>
     <string name="query_times">Queried %d times</string>

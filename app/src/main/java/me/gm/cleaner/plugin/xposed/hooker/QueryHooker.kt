@@ -262,18 +262,9 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             L.d("QueryHooker", "isClientQuery FAILED: pkgMatch=$pkgMatch, uriMatch=$uriMatch")
             return false
         }
-        // Additional UID verification for security
-        val callingUid = android.os.Binder.getCallingUid()
-        val expectedUid = try {
-            service.context.packageManager
-                .getPackageUid(BuildConfig.APPLICATION_ID, 0)
-        } catch (e: Exception) {
-            L.e("QueryHooker", "Failed to get expected UID for ${BuildConfig.APPLICATION_ID}", e)
-            -1
-        }
-        val uidMatch = callingUid == expectedUid
-        L.d("QueryHooker", "isClientQuery UID check: callingUid=$callingUid, expectedUid=$expectedUid, match=$uidMatch")
-        return uidMatch
+        // On recent Android versions queryInternal may no longer expose the app's Binder caller
+        // UID reliably here. The returned service still enforces caller UID on every AIDL call.
+        return true
     }
 
     /**
