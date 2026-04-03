@@ -44,7 +44,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.html.HtmlPlugin
-import io.noties.markwon.image.ImagesPlugin
+import io.noties.markwon.image.glide.GlideImagesPlugin
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
@@ -75,7 +75,7 @@ fun AboutScreen(
         Markwon.builder(context)
             .usePlugin(StrikethroughPlugin.create())
             .usePlugin(HtmlPlugin.create())
-            .usePlugin(ImagesPlugin.create())
+            .usePlugin(GlideImagesPlugin.create(context))
             .build()
     }
 
