@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ *     required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -19,40 +19,22 @@ package me.gm.cleaner.plugin.xposed.hooker
 import android.net.Uri
 import android.os.Bundle
 import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
-import me.gm.cleaner.plugin.BuildConfig
+import me.gm.cleaner.plugin.util.L
 import java.lang.reflect.Method
 import java.util.Optional
 import java.util.concurrent.atomic.AtomicReference
 
 interface MediaProviderHooker {
     companion object {
-        private val lastLog = AtomicReference<String?>(null)
-        private val lastLogTime = AtomicReference<Long>(0L)
-
         private val isQueryBuilderResolved = AtomicReference<Boolean>(false)
 
         @Volatile
         var queryBuilderMethodInstance: Method? = null
             private set
-
-        fun logOnce(message: String) {
-            if (BuildConfig.DEBUG) {
-                val now = System.currentTimeMillis()
-                val prevMessage = lastLog.get()
-                val prevTime = lastLogTime.get()
-                if (prevMessage == message && now - prevTime < 1000) {
-                    return
-                }
-                lastLog.set(message)
-                lastLogTime.set(now)
-                XposedBridge.log("MPM_DEBUG: $message")
-            }
-        }
     }
 
-    fun dlog(message: String) = logOnce(message)
+    fun dlog(message: String) = L.logOnce(message)
 
     private fun resolveQueryBuilderMethod(thisObject: Any) {
         if (isQueryBuilderResolved.get()) return
@@ -146,14 +128,14 @@ interface MediaProviderHooker {
             try {
                 XposedHelpers.callMethod(thisObject, "isFuseThread") as Boolean
             } catch (e2: Throwable) {
-                // If we cannot determine, be conservative and assume it IS a FUSE thread
-                // to avoid interfering with critical storage operations
-                dlog("Cannot determine FUSE thread status, assuming FUSE thread to be safe: $e2")
-                true
+                // If we cannot determine, default to false to avoid blocking legitimate queries
+                // (e.g., the binder query from the client app used to detect module activation)
+                dlog("Cannot determine FUSE thread status, assuming NOT FUSE thread: $e2")
+                false
             }
         } catch (e: Throwable) {
             dlog("Unexpected error checking FUSE thread: $e")
-            true  // Be conservative
+            false  // Default to false to avoid blocking legitimate queries
         }
 
     val XC_MethodHook.MethodHookParam.isSystemCallingPackage: Boolean

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ *     required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -24,9 +24,8 @@ import android.content.res.AssetManager
 import android.content.res.Resources
 import android.provider.MediaStore
 import de.robv.android.xposed.*
-import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
-import me.gm.cleaner.plugin.BuildConfig
+import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.hooker.DeleteHooker
 import me.gm.cleaner.plugin.xposed.hooker.FileHooker
 import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
@@ -37,27 +36,27 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
 
     @Throws(Throwable::class)
     private fun onMediaProviderLoaded(lpparam: LoadPackageParam, context: Context) {
-        if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: MediaProvider loaded: ${lpparam.packageName}")
+        L.d("MediaProvider loaded: ${lpparam.packageName}")
         val mediaProvider = try {
             XposedHelpers.findClass(
                 "com.android.providers.media.MediaProvider", lpparam.classLoader
             )
         } catch (e: XposedHelpers.ClassNotFoundError) {
-            if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: MediaProvider class not found!")
+            L.e("MediaProvider class not found!", e)
             return
         }
         // only save MediaProvider's classLoader
         classLoader = lpparam.classLoader
         onCreate(context)
         try {
-            if (BuildConfig.DEBUG) {
-                XposedBridge.log("********** MPM_DEBUG: START METHOD DUMP **********")
+            if (L.isDebug) {
+                L.dumpHeader("START METHOD DUMP")
                 
-                XposedBridge.log("--- MediaProvider Methods ---")
+                L.d("--- MediaProvider Methods ---")
                 mediaProvider.declaredMethods.forEach { method ->
                     if (method.name in setOf("getQueryBuilder", "getDatabaseForUri", "resolveVolumeName", "queryInternal")) {
                         val params = method.parameterTypes.joinToString(", ") { it.name }
-                        XposedBridge.log("MPM_METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
+                        L.v("METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
                     }
                 }
                 
@@ -65,34 +64,34 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
                     val databaseUtilsClass = XposedHelpers.findClass(
                         "com.android.providers.media.util.DatabaseUtils", lpparam.classLoader
                     )
-                    XposedBridge.log("--- DatabaseUtils Methods ---")
+                    L.d("--- DatabaseUtils Methods ---")
                     databaseUtilsClass.declaredMethods.forEach { method ->
                         if (method.name in setOf("resolveQueryArgs", "recoverAbusiveSortOrder", "recoverAbusiveLimit", "recoverAbusiveSelection")) {
                             val params = method.parameterTypes.joinToString(", ") { it.name }
-                            XposedBridge.log("MPM_METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
+                            L.v("METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
                         }
                     }
                 } catch (e: Throwable) {
-                    XposedBridge.log("MPM_DEBUG: Could not find DatabaseUtils: $e")
+                    L.e("Could not find DatabaseUtils", e)
                 }
 
-                XposedBridge.log("*********** MPM_DEBUG: END METHOD DUMP ***********")
+                L.dumpFooter()
             }
 
             XposedBridge.hookAllMethods(
                 mediaProvider, "queryInternal", QueryHooker(this@XposedInit)
             )
-            if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: Hooked queryInternal")
+            L.d("Hooked queryInternal")
             XposedBridge.hookAllMethods(
                 mediaProvider, "insertFile", InsertHooker(this@XposedInit)
             )
-            if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: Hooked insertFile")
+            L.d("Hooked insertFile")
             XposedBridge.hookAllMethods(
                 mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)
             )
-            if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: Hooked deleteInternal")
+            L.d("Hooked deleteInternal")
         } catch (t: Throwable) {
-            if (BuildConfig.DEBUG) XposedBridge.log("MPM_DEBUG: Error hooking MediaProvider: $t")
+            L.e("Error hooking MediaProvider", t)
         }
     }
 

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ *     required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -17,9 +17,9 @@
 package me.gm.cleaner.plugin.xposed
 
 import android.text.TextUtils
-import de.robv.android.xposed.XposedBridge
 import me.gm.cleaner.plugin.dao.JsonSharedPreferencesImpl
 import me.gm.cleaner.plugin.dao.SharedPreferencesWrapper
+import me.gm.cleaner.plugin.util.L
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
@@ -48,7 +48,7 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
             try {
                 file.createNewFile()
             } catch (e: IOException) {
-                XposedBridge.log(e)
+                L.e("Failed to create file: ${file.path}", e)
                 throw RuntimeException(e)
             }
         }
@@ -65,7 +65,7 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
                     contentCache = String(bb.array())
                 }
             } catch (e: IOException) {
-                XposedBridge.log(e)
+                L.e("Failed to read file: ${file.path}", e)
             }
         }
         return contentCache
@@ -86,14 +86,14 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
                 fos.fd.sync() // 强制同步到硬件磁盘
             }
         } catch (e: IOException) {
-            XposedBridge.log("Failed to write rules atomically: $e")
+            L.e("Failed to write rules atomically: $e")
             // 备份方案：如果原子写入失败，尝试直接写入（虽然不安全，但在极端文件权限下可能是唯一出路）
             try {
                 FileOutputStream(file).use { fos ->
                     fos.write(what.toByteArray(StandardCharsets.UTF_8))
                 }
             } catch (ex: IOException) {
-                XposedBridge.log("Critical failure writing rules: $ex")
+                L.e("Critical failure writing rules", ex)
             }
             return
         }
@@ -101,7 +101,7 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
         // 原子替换
         if (!tempFile.renameTo(file)) {
             if (!file.delete() || !tempFile.renameTo(file)) {
-                XposedBridge.log("Failed to rename temporary file to $file")
+                L.e("Failed to rename temporary file to $file")
             }
         }
     }

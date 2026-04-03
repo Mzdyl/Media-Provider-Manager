@@ -31,6 +31,7 @@ import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.xposed.ManagerService
