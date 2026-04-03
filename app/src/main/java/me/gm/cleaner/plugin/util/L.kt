@@ -18,7 +18,7 @@ package me.gm.cleaner.plugin.util
 
 import de.robv.android.xposed.XposedBridge
 import me.gm.cleaner.plugin.BuildConfig
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Unified logging utility for Media Provider Manager.
@@ -26,12 +26,14 @@ import java.util.concurrent.atomic.AtomicReference
  * DEBUG builds: All log levels are enabled with verbose output
  * RELEASE builds: Only error logs are enabled
  * 
+ * Features:
+ * - Debouncing: Prevents repeated log messages within a time window
+ * - Rate limiting: Counts suppressed messages and reports them
+ * 
  * Usage:
  *   L.d("Debug message")
- *   L.i("Info message")
- *   L.w("Warning message")
- *   L.e("Error message")
- *   L.e("Error with exception", throwable)
+ *   L.d(tag, "Debug message")  // with custom tag
+ *   L.dlog("Debounced message")  // with debouncing (recommended for hooks)
  */
 object L {
     private const val TAG = "MPM"
@@ -47,9 +49,14 @@ object L {
     // Minimum log level based on build type
     private val minLogLevel: Int = if (BuildConfig.DEBUG) VERBOSE else ERROR
     
-    // For deduplication
-    private val lastLog = AtomicReference<String?>(null)
-    private val lastLogTime = AtomicReference<Long>(0L)
+    // Debounce settings
+    private const val DEFAULT_DEBOUNCE_MS = 1000L
+    private const val MAX_CACHE_SIZE = 100
+    
+    // Debounce cache: message key -> last log time
+    private val debounceCache = ConcurrentHashMap<String, Long>()
+    // Suppressed count: message key -> count
+    private val suppressedCount = ConcurrentHashMap<String, Int>()
     
     /**
      * Check if debug logging is enabled
@@ -188,24 +195,86 @@ object L {
     }
     
     /**
-     * Log a message only once within a time window (1 second by default).
-     * Useful for preventing log spam from repeated operations.
+     * Log a debug message with debouncing.
+     * Prevents repeated messages within [windowMs] milliseconds.
+     * Reports suppressed count when the message is finally logged.
+     * 
+     * @param message The message to log
+     * @param windowMs Time window in milliseconds (default 1000ms)
      */
     @JvmStatic
-    fun logOnce(message: String, windowMs: Long = 1000) {
+    @JvmOverloads
+    fun dlog(message: String, windowMs: Long = DEFAULT_DEBOUNCE_MS) {
         if (!isLoggable(DEBUG)) return
         
         val now = System.currentTimeMillis()
-        val prevMessage = lastLog.get()
-        val prevTime = lastLogTime.get()
+        val lastTime = debounceCache[message]
         
-        if (prevMessage == message && now - prevTime < windowMs) {
+        if (lastTime != null && now - lastTime < windowMs) {
+            // Increment suppressed count
+            suppressedCount.merge(message, 1, Int::plus)
             return
         }
         
-        lastLog.set(message)
-        lastLogTime.set(now)
-        XposedBridge.log("$TAG: $message")
+        // Clean up old entries if cache is too large
+        if (debounceCache.size > MAX_CACHE_SIZE) {
+            cleanupCache(now)
+        }
+        
+        // Update cache
+        debounceCache[message] = now
+        
+        // Check if there were suppressed messages
+        val suppressed = suppressedCount.remove(message) ?: 0
+        val finalMessage = if (suppressed > 0) {
+            "$message (suppressed $suppressed)"
+        } else {
+            message
+        }
+        
+        XposedBridge.log("$TAG: $finalMessage")
+    }
+    
+    /**
+     * Log a debug message with custom tag and debouncing.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun dlog(tag: String, message: String, windowMs: Long = DEFAULT_DEBOUNCE_MS) {
+        if (!isLoggable(DEBUG)) return
+        
+        val key = "$tag:$message"
+        val now = System.currentTimeMillis()
+        val lastTime = debounceCache[key]
+        
+        if (lastTime != null && now - lastTime < windowMs) {
+            suppressedCount.merge(key, 1, Int::plus)
+            return
+        }
+        
+        if (debounceCache.size > MAX_CACHE_SIZE) {
+            cleanupCache(now)
+        }
+        
+        debounceCache[key] = now
+        
+        val suppressed = suppressedCount.remove(key) ?: 0
+        val finalMessage = if (suppressed > 0) {
+            "$message (suppressed $suppressed)"
+        } else {
+            message
+        }
+        
+        XposedBridge.log("$TAG/$tag: $finalMessage")
+    }
+    
+    /**
+     * Clean up old entries from the debounce cache.
+     */
+    private fun cleanupCache(now: Long) {
+        val threshold = now - DEFAULT_DEBOUNCE_MS * 10 // Keep entries for 10x the debounce window
+        debounceCache.entries.removeIf { it.value < threshold }
+        suppressedCount.entries.removeIf { debounceCache[it.key] == null }
     }
     
     /**

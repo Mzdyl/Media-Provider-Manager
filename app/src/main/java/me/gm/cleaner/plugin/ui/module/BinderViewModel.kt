@@ -21,6 +21,7 @@ import android.content.pm.PackageInfo
 import android.os.IBinder
 import android.os.Process
 import android.provider.MediaStore
+import android.util.Log
 import android.util.SparseArray
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -44,18 +45,31 @@ class BinderViewModel @Inject constructor(
     private val binder: IBinder?
         get() {
             if (!binderQueried) {
-                binderQueried = true
                 _binder = queryBinder()
+                if (_binder != null) {
+                    binderQueried = true
+                    Log.d("MPM/BinderVM", "Binder acquired, locking cache")
+                } else {
+                    Log.d("MPM/BinderVM", "Binder is null, NOT locking — allowing retry on next access")
+                }
             }
             return _binder
         }
     
     private fun queryBinder(): IBinder? = runCatching {
-        context.contentResolver.query(
+        Log.d("MPM/BinderVM", "Executing contentResolver.query for binder...")
+        val cursor = context.contentResolver.query(
             MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
-        )?.use {
-            it.extras.getBinder(BINDER_EXTRA_KEY)
+        )
+        Log.d("MPM/BinderVM", "Query returned cursor: ${cursor != null}")
+        cursor?.use {
+            Log.d("MPM/BinderVM", "Cursor extras keys: ${it.extras?.keySet()?.joinToString()}")
+            val binderResult = it.extras.getBinder(BINDER_EXTRA_KEY)
+            Log.d("MPM/BinderVM", "Extracted binder from extras: ${binderResult != null}")
+            binderResult
         }
+    }.onFailure { e ->
+        Log.e("MPM/BinderVM", "queryBinder failed", e)
     }.getOrNull()
     
     /**
@@ -63,9 +77,12 @@ class BinderViewModel @Inject constructor(
      * and wants to verify the connection without restarting the app.
      */
     fun refreshBinder() {
-        _binder = queryBinder()
-        // Clear cached service to force re-resolution
+        Log.d("MPM/BinderVM", "refreshBinder called: previous binderQueried=$binderQueried, previous _binder=${_binder != null}")
+        binderQueried = false
+        _binder = null
         _service = null
+        _binder = queryBinder()
+        Log.d("MPM/BinderVM", "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
     }
     
     private var _service: IManagerService? = null

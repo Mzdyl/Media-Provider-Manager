@@ -34,7 +34,7 @@ interface MediaProviderHooker {
             private set
     }
 
-    fun dlog(message: String) = L.logOnce(message)
+    fun dlog(message: String) = L.dlog(message)
 
     private fun resolveQueryBuilderMethod(thisObject: Any) {
         if (isQueryBuilderResolved.get()) return
@@ -147,9 +147,28 @@ interface MediaProviderHooker {
     val XC_MethodHook.MethodHookParam.callingPackage: String
         get() {
             ensureMediaProvider()
-            val threadLocal =
-                XposedHelpers.getObjectField(thisObject, "mCallingIdentity") as ThreadLocal<*>
-            return XposedHelpers.callMethod(threadLocal.get(), "getPackageName") as String
+            return try {
+                val threadLocal =
+                    XposedHelpers.getObjectField(thisObject, "mCallingIdentity") as ThreadLocal<*>
+                val identity = threadLocal.get()
+                if (identity == null) {
+                    L.e("QueryHooker", "mCallingIdentity ThreadLocal.get() returned null")
+                    ""
+                } else {
+                    val pkg = XposedHelpers.callMethod(identity, "getPackageName") as String
+                    L.d("QueryHooker", "callingPackage resolved: $pkg")
+                    pkg
+                }
+            } catch (e: NoSuchFieldError) {
+                L.e("QueryHooker", "mCallingIdentity field not found on this Android version", e)
+                ""
+            } catch (e: XposedHelpers.ClassNotFoundError) {
+                L.e("QueryHooker", "mCallingIdentity class not found", e)
+                ""
+            } catch (e: Throwable) {
+                L.e("QueryHooker", "Unexpected error resolving callingPackage", e)
+                ""
+            }
         }
 
     val XC_MethodHook.MethodHookParam.isCallingPackageAllowedHidden: Boolean

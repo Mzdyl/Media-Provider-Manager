@@ -45,6 +45,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
         if (param.isFuseThread) {
+            L.d("QueryHooker", "Skipped: FUSE thread detected")
             return
         }
         /** ARGUMENTS */
@@ -54,6 +55,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val signal = param.args[3] as? CancellationSignal
 
         val callingPkg = param.callingPackage
+        L.d("QueryHooker", "beforeHookedMethod: uri=$uri, callingPkg='$callingPkg', isFuse=false")
         val isSystemMaintenance = callingPkg in MediaTables.SYSTEM_CALLING_PACKAGES &&
                 projection != null &&
                 projection.none { it.equals(FileColumns.DATA, ignoreCase = true) || it.equals("_data", ignoreCase = true) }
@@ -86,10 +88,13 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 dlog("Error in resolveQueryArgs: $t")
             }
         }
+        L.d("QueryHooker", "About to check isClientQuery: callingPkg='$callingPkg', uri=$uri")
         if (isClientQuery(param.callingPackage, uri)) {
+            L.d("QueryHooker", "isClientQuery returned TRUE, handling client query")
             param.result = handleClientQuery(projection, query)
             return
         }
+        L.d("QueryHooker", "isClientQuery returned FALSE, proceeding with normal hook")
         val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
         dlog("Matched table: $table")
         val dataProjection = when {
@@ -249,14 +254,26 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
     }
 
     private fun isClientQuery(callingPackage: String, uri: Uri): Boolean {
-        if (callingPackage != BuildConfig.APPLICATION_ID || uri != MediaStore.Images.Media.INTERNAL_CONTENT_URI) {
+        val pkgMatch = callingPackage == BuildConfig.APPLICATION_ID
+        val uriMatch = uri == MediaStore.Images.Media.INTERNAL_CONTENT_URI
+        L.d("QueryHooker", "isClientQuery check: callingPackage='$callingPackage' (expected='${BuildConfig.APPLICATION_ID}', match=$pkgMatch), uri=$uri (expected=${MediaStore.Images.Media.INTERNAL_CONTENT_URI}, match=$uriMatch)")
+        
+        if (!pkgMatch || !uriMatch) {
+            L.d("QueryHooker", "isClientQuery FAILED: pkgMatch=$pkgMatch, uriMatch=$uriMatch")
             return false
         }
         // Additional UID verification for security
         val callingUid = android.os.Binder.getCallingUid()
-        val expectedUid = service.context.packageManager
-            .getPackageUid(BuildConfig.APPLICATION_ID, 0)
-        return callingUid == expectedUid
+        val expectedUid = try {
+            service.context.packageManager
+                .getPackageUid(BuildConfig.APPLICATION_ID, 0)
+        } catch (e: Exception) {
+            L.e("QueryHooker", "Failed to get expected UID for ${BuildConfig.APPLICATION_ID}", e)
+            -1
+        }
+        val uidMatch = callingUid == expectedUid
+        L.d("QueryHooker", "isClientQuery UID check: callingUid=$callingUid, expectedUid=$expectedUid, match=$uidMatch")
+        return uidMatch
     }
 
     /**
