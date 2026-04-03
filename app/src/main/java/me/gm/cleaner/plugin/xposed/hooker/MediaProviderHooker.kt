@@ -156,7 +156,7 @@ interface MediaProviderHooker {
                     ""
                 } else {
                     val pkg = XposedHelpers.callMethod(identity, "getPackageName") as String
-                    L.d("QueryHooker", "callingPackage resolved: $pkg")
+                    dlog("callingPackage resolved: $pkg")
                     pkg
                 }
             } catch (e: NoSuchFieldError) {

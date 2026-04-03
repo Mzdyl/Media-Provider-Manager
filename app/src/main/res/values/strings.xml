@@ -184,6 +184,7 @@
     <string name="filter">Filter</string>
     <string name="hide_system_apps">Hide system apps</string>
     <string name="module_version">Module v%d</string>
+    <string name="module_activated">Module activated. Restart affected apps to apply changes.</string>
     <string name="no_apps_found">No apps found</string>
     <string name="no_usage_records_found">No usage records found</string>
     <string name="no_templates">No templates yet</string>

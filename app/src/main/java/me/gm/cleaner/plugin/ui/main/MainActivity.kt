@@ -1,5 +1,6 @@
 package me.gm.cleaner.plugin.ui.main
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,13 +34,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
@@ -47,6 +49,10 @@ import me.gm.cleaner.plugin.ui.navigation.AppNavHost
 import me.gm.cleaner.plugin.ui.navigation.topLevelDestinations
 import me.gm.cleaner.plugin.ui.components.StatusBadge
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 
 private fun mapOldDestinationIdToRoute(id: Int): Any? = when (id) {
     R.id.applist_fragment -> AppRoute.AppList
@@ -165,6 +171,8 @@ private fun DrawerHeader(
     var moduleVersion by remember { mutableStateOf(0) }
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var pollingJob by remember { mutableStateOf<Job?>(null) }
 
     suspend fun checkActivation() {
         isRefreshing = true
@@ -174,8 +182,38 @@ private fun DrawerHeader(
         isRefreshing = false
     }
 
+    fun startPolling() {
+        if (pollingJob?.isActive == true) return
+        pollingJob = scope.launch {
+            while (isActive) {
+                if (binderViewModel.pingBinder()) {
+                    isActive = true
+                    moduleVersion = binderViewModel.moduleVersion
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.module_activated),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    break
+                }
+                delay(500)
+            }
+            pollingJob = null
+        }
+    }
+
     androidx.compose.runtime.LaunchedEffect(binderViewModel) {
         checkActivation()
+        if (!isActive) {
+            startPolling()
+        }
+    }
+
+    DisposableEffect(binderViewModel) {
+        onDispose {
+            pollingJob?.cancel()
+            pollingJob = null
+        }
     }
 
     Column(
@@ -201,6 +239,8 @@ private fun DrawerHeader(
             onClick = {
                 if (!isActive && !isRefreshing) {
                     scope.launch { checkActivation() }
+                } else if (!isActive && pollingJob?.isActive != true) {
+                    startPolling()
                 }
             }
         )
