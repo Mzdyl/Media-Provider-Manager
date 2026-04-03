@@ -26,6 +26,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,8 +45,10 @@ class UsageRecordViewModel(
     private val binderViewModel: BinderViewModel,
 ) : AndroidViewModel(application) {
     private val _isSearchingFlow: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    val isSearchingFlow: StateFlow<Boolean> = _isSearchingFlow.asStateFlow()
     var isSearching: Boolean by _isSearchingFlow
     private val _queryTextFlow: MutableStateFlow<String> = MutableStateFlow("")
+    val queryTextFlow: StateFlow<String> = _queryTextFlow.asStateFlow()
     var queryText: String by _queryTextFlow
     private val _selectedTimeFlow: MutableStateFlow<Long> =
         MutableStateFlow(System.currentTimeMillis())

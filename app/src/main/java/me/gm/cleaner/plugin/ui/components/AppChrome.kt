@@ -1,5 +1,8 @@
 package me.gm.cleaner.plugin.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -10,7 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -237,5 +245,51 @@ fun EmptyStateCard(
             )
             action?.invoke()
         }
+    }
+}
+
+/**
+ * A composable that displays an app icon from a PackageInfo.
+ * Falls back to a default icon if the package info is null or icon loading fails.
+ *
+ * @param packageInfo The PackageInfo to load the icon from, can be null
+ * @param modifier The modifier to apply to the icon
+ * @param fallbackIcon The icon to show when package info is null or icon loading fails
+ */
+@Composable
+fun AppIcon(
+    packageInfo: android.content.pm.PackageInfo?,
+    modifier: Modifier = Modifier,
+    fallbackIcon: ImageVector = Icons.Default.Info,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val icon = remember(packageInfo?.packageName) {
+        runCatching {
+            packageInfo?.applicationInfo?.loadIcon(context.packageManager)
+        }.getOrNull()
+    }
+
+    if (icon != null) {
+        val bitmap = remember(icon) {
+            android.graphics.Bitmap.createBitmap(
+                icon.intrinsicWidth.coerceAtLeast(1),
+                icon.intrinsicHeight.coerceAtLeast(1),
+                android.graphics.Bitmap.Config.ARGB_8888,
+            ).also { bitmap ->
+                icon.setBounds(0, 0, bitmap.width, bitmap.height)
+                icon.draw(android.graphics.Canvas(bitmap))
+            }
+        }
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.graphics.painter.BitmapPainter(bitmap.asImageBitmap()),
+            contentDescription = null,
+            modifier = modifier,
+        )
+    } else {
+        Icon(
+            imageVector = fallbackIcon,
+            contentDescription = null,
+            modifier = modifier,
+        )
     }
 }

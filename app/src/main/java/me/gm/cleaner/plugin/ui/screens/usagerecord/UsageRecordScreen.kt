@@ -8,7 +8,6 @@ import android.icu.text.DateFormat
 import android.icu.util.TimeZone
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +28,7 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,10 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -82,6 +79,7 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.RootPreferences
+import me.gm.cleaner.plugin.ui.components.AppIcon
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.components.TopLevelTopBar
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
@@ -102,8 +100,8 @@ fun UsageRecordScreen(
         )
     }
     val recordsState by viewModel.recordsFlow.collectAsStateWithLifecycle(initialValue = null)
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearching by remember { mutableStateOf(false) }
+    val isSearching by viewModel.isSearchingFlow.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.queryTextFlow.collectAsStateWithLifecycle()
     var showFilterMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var detailRecord by remember { mutableStateOf<MediaProviderRecord?>(null) }
@@ -182,7 +180,7 @@ fun UsageRecordScreen(
                                 contentDescription = stringResource(R.string.pick_date_title),
                             )
                         }
-                        IconButton(onClick = { isSearching = !isSearching }) {
+                        IconButton(onClick = { viewModel.isSearching = !viewModel.isSearching }) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = stringResource(R.string.search),
@@ -255,10 +253,7 @@ fun UsageRecordScreen(
                         AnimatedVisibility(visible = isSearching) {
                             OutlinedTextField(
                                 value = searchQuery,
-                                onValueChange = {
-                                    searchQuery = it
-                                    viewModel.queryText = it
-                                },
+                                onValueChange = { viewModel.queryText = it },
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = { Text(stringResource(R.string.search)) },
                                 singleLine = true,
@@ -283,13 +278,7 @@ fun UsageRecordScreen(
             }
 
             is UsageRecordState.Done -> {
-                val filteredList = state.list.filter { record ->
-                    if (searchQuery.isBlank()) true
-                    else record.data.any { it.contains(searchQuery, ignoreCase = true) } ||
-                        record.label?.contains(searchQuery, ignoreCase = true) == true ||
-                        record.packageName.contains(searchQuery, ignoreCase = true)
-                }
-                if (filteredList.isEmpty()) {
+                if (state.list.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -312,7 +301,7 @@ fun UsageRecordScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(
-                            items = filteredList,
+                            items = state.list,
                             key = { record ->
                                 if (record.id != 0) {
                                     record.id
@@ -396,7 +385,11 @@ private fun UsageRecordItem(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                UsageRecordAppIcon(record = record, modifier = Modifier.size(32.dp))
+                AppIcon(
+                    packageInfo = record.packageInfo,
+                    modifier = Modifier.size(32.dp),
+                    fallbackIcon = Icons.Outlined.Apps,
+                )
                 Column(
                     modifier = Modifier
                         .padding(start = 12.dp)
@@ -486,46 +479,5 @@ private fun UsageRecordDetailDialog(
                 Text(text = stringResource(R.string.cancel))
             }
         },
-    )
-}
-
-@Composable
-private fun UsageRecordAppIcon(
-    record: MediaProviderRecord,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val pi = record.packageInfo
-    if (pi != null) {
-        val icon = remember(pi.packageName) {
-            try {
-                pi.applicationInfo?.loadIcon(context.packageManager)
-            } catch (_: Exception) {
-                null
-            }
-        }
-        if (icon != null) {
-            val bitmap = remember(icon) {
-                android.graphics.Bitmap.createBitmap(
-                    icon.intrinsicWidth.coerceAtLeast(1),
-                    icon.intrinsicHeight.coerceAtLeast(1),
-                    android.graphics.Bitmap.Config.ARGB_8888,
-                ).also { bitmap ->
-                    icon.setBounds(0, 0, bitmap.width, bitmap.height)
-                    icon.draw(android.graphics.Canvas(bitmap))
-                }
-            }
-            Image(
-                painter = BitmapPainter(bitmap.asImageBitmap()),
-                contentDescription = null,
-                modifier = modifier,
-            )
-            return
-        }
-    }
-    Image(
-        painter = painterResource(R.drawable.ic_outline_apps_24),
-        contentDescription = null,
-        modifier = modifier,
     )
 }

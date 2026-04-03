@@ -1,7 +1,6 @@
 package me.gm.cleaner.plugin.ui.screens.applist
 
 import android.app.Application
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Web
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.CircleShape
@@ -36,16 +35,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
 import me.gm.cleaner.plugin.model.SpIdentifiers
+import me.gm.cleaner.plugin.ui.components.AppIcon
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.module.appmanagement.AppListModel
@@ -275,6 +273,7 @@ private fun AppListItem(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape),
+                fallbackIcon = Icons.Outlined.Apps,
             )
             Column(
                 modifier = Modifier
@@ -302,33 +301,5 @@ private fun AppListItem(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun AppIcon(
-    packageInfo: android.content.pm.PackageInfo,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val icon: android.graphics.drawable.Drawable? = remember(packageInfo.packageName) {
-        try {
-            packageInfo.applicationInfo?.loadIcon(context.packageManager)
-        } catch (_: Exception) {
-            null
-        }
-    }
-    if (icon != null) {
-        Image(
-            painter = rememberDrawablePainter(drawable = icon),
-            contentDescription = null,
-            modifier = modifier,
-        )
-    } else {
-        Image(
-            painter = painterResource(R.drawable.ic_outline_apps_24),
-            contentDescription = null,
-            modifier = modifier,
-        )
     }
 }

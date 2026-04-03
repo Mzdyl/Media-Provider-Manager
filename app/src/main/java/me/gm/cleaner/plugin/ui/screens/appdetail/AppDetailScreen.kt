@@ -19,7 +19,6 @@ package me.gm.cleaner.plugin.ui.screens.appdetail
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,8 +55,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +66,7 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
+import me.gm.cleaner.plugin.ui.components.AppIcon
 import me.gm.cleaner.plugin.ui.components.EmptyStateCard
 import me.gm.cleaner.plugin.ui.components.SectionHeader
 import me.gm.cleaner.plugin.ui.components.SecondaryTopBar
@@ -260,7 +258,7 @@ private fun AppOverviewCard(
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppPackageIcon(
+                AppIcon(
                     packageInfo = packageInfo,
                     modifier = Modifier.size(52.dp),
                 )
@@ -319,44 +317,6 @@ private fun AppOverviewCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun AppPackageIcon(
-    packageInfo: android.content.pm.PackageInfo?,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val icon = remember(packageInfo?.packageName) {
-        try {
-            packageInfo?.applicationInfo?.loadIcon(context.packageManager)
-        } catch (_: Exception) {
-            null
-        }
-    }
-    if (icon != null) {
-        val bitmap = remember(icon) {
-            android.graphics.Bitmap.createBitmap(
-                icon.intrinsicWidth.coerceAtLeast(1),
-                icon.intrinsicHeight.coerceAtLeast(1),
-                android.graphics.Bitmap.Config.ARGB_8888,
-            ).also { bitmap ->
-                icon.setBounds(0, 0, bitmap.width, bitmap.height)
-                icon.draw(android.graphics.Canvas(bitmap))
-            }
-        }
-        Image(
-            painter = BitmapPainter(bitmap.asImageBitmap()),
-            contentDescription = null,
-            modifier = modifier,
-        )
-    } else {
-        Icon(
-            imageVector = Icons.Default.Info,
-            contentDescription = null,
-            modifier = modifier,
-        )
     }
 }
 
