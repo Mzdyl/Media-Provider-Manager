@@ -63,6 +63,7 @@ object MimeUtils {
      * carefully checks for more specific types before generic ones, such as
      * treating `audio/mpegurl` as a playlist instead of an audio file.
      */
+    @Suppress("DEPRECATION")
     fun resolveMediaType(mimeType: String?): Int = when {
         isPlaylistMimeType(mimeType) -> FileColumns.MEDIA_TYPE_PLAYLIST
         isSubtitleMimeType(mimeType) -> FileColumns.MEDIA_TYPE_SUBTITLE

@@ -36,7 +36,7 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
     init {
         val json = try {
             val str = read()
-            if (TextUtils.isEmpty(str)) JSONObject() else JSONObject(str)
+            if (str.isNullOrEmpty()) JSONObject() else JSONObject(str)
         } catch (e: JSONException) {
             JSONObject()
         }

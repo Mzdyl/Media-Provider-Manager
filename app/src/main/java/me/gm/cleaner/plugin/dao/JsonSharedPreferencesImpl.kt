@@ -40,13 +40,14 @@ class JsonSharedPreferencesImpl : SharedPreferences {
 
     @Throws(JSONException::class)
     constructor(json: String?) {
-        store = if (TextUtils.isEmpty(json)) JSONObject() else JSONObject(json)
+        store = if (json.isNullOrEmpty()) JSONObject() else JSONObject(json)
     }
 
     val delegate: JSONObject
         get() = synchronized(lock) {
             try {
-                JSONObject(store, getNames(store))
+                val names = getNames(store)
+                if (names != null) JSONObject(store, names) else JSONObject()
             } catch (e: JSONException) {
                 throw RuntimeException(e)
             }
@@ -93,7 +94,7 @@ class JsonSharedPreferencesImpl : SharedPreferences {
 
     override fun getBoolean(key: String?, defValue: Boolean): Boolean = get(key!!, defValue) ?: defValue
 
-    override fun contains(key: String?): Boolean = synchronized(lock) { store.has(key) }
+    override fun contains(key: String?): Boolean = synchronized(lock) { key != null && store.has(key) }
 
     override fun edit(): JsonEditorImpl = JsonEditorImpl { false }
 
