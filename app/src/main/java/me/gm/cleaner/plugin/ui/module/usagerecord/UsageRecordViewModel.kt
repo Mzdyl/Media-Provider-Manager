@@ -19,6 +19,7 @@ package me.gm.cleaner.plugin.ui.module.usagerecord
 import android.app.Application
 import android.content.pm.PackageInfo
 import android.provider.MediaStore
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -44,6 +45,8 @@ class UsageRecordViewModel(
     application: Application,
     private val binderViewModel: BinderViewModel,
 ) : AndroidViewModel(application) {
+    private val tag = "MPM/UsageRecordVM"
+
     private val _isSearchingFlow: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isSearchingFlow: StateFlow<Boolean> = _isSearchingFlow.asStateFlow()
     var isSearching: Boolean by _isSearchingFlow
@@ -97,18 +100,28 @@ class UsageRecordViewModel(
     private suspend inline fun queryRecord(
         start: Long, end: Long, operations: List<Int>
     ): List<MediaProviderRecord> = withContext(Dispatchers.IO) {
+        if (!binderViewModel.pingBinder()) {
+            Log.d(tag, "Skipping usage record query because module binder is unavailable")
+            return@withContext emptyList()
+        }
         val projection = operations.map { it.toString() }.toTypedArray()
         val selection = start.toString()
         val sortOrder = end.toString()
 
-        getApplication<Application>().contentResolver.query(
-            MediaStore.Images.Media.INTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            null,
-            sortOrder
-        )?.use { cursor ->
-            return@withContext MediaProviderRecord.convert(cursor)
+        runCatching {
+            getApplication<Application>().contentResolver.query(
+                MediaStore.Images.Media.INTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                null,
+                sortOrder
+            )?.use { cursor ->
+                MediaProviderRecord.convert(cursor)
+            }
+        }.onFailure { throwable ->
+            Log.w(tag, "Usage record query failed, returning empty result", throwable)
+        }.getOrNull()?.let { records ->
+            return@withContext records
         }
         return@withContext emptyList()
     }
