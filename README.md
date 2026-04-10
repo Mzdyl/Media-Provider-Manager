@@ -2,15 +2,15 @@
 
 An Xposed module intended to prevent media storage abuse.
 
-[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/MediaProviderManager)
-[![Stars](https://img.shields.io/github/stars/GuhDoy/Media-Provider-Manager?label=Stars)](https://github.com/MaterialCleaner/Media-Provider-Manager)
-[![Download](https://img.shields.io/github/v/release/GuhDoy/Media-Provider-Manager?label=Download)](https://github.com/MaterialCleaner/Media-Provider-Manager/releases/latest)
+[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/+rx5V9umZI4FjMWNl)
+[![Stars](https://img.shields.io/github/stars/Mzdyl/Media-Provider-Manager?label=Stars)](https://github.com/Mzdyl/Media-Provider-Manager)
+[![Download](https://img.shields.io/github/v/release/Mzdyl/Media-Provider-Manager?label=Download)](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
 
 ## Screenshots
 
-<p><img src="https://raw.githubusercontent.com/MaterialCleaner/Media-Provider-Manager/main/screenshots/about.jpg" height="400" alt="Screenshot"/>
-<img src="https://raw.githubusercontent.com/MaterialCleaner/Media-Provider-Manager/main/screenshots/record.jpg" height="400" alt="Screenshot"/>
-<img src="https://raw.githubusercontent.com/MaterialCleaner/Media-Provider-Manager/main/screenshots/template.jpg" height="400" alt="Screenshot"/></p>
+<p><img src="https://raw.githubusercontent.com/Mzdyl/Media-Provider-Manager/Re/screenshots/about.jpg" height="400" alt="Screenshot"/>
+<img src="https://raw.githubusercontent.com/Mzdyl/Media-Provider-Manager/Re/screenshots/record.jpg" height="400" alt="Screenshot"/>
+<img src="https://raw.githubusercontent.com/Mzdyl/Media-Provider-Manager/Re/screenshots/template.jpg" height="400" alt="Screenshot"/></p>
 
 ## What is media store
 
@@ -34,11 +34,11 @@ As with native storage, Android does not offer a fine-grained management scheme 
 
 ## Source code
 
-[https://github.com/MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager)
+[https://github.com/Mzdyl/Media-Provider-Manager](https://github.com/Mzdyl/Media-Provider-Manager)
 
 ## Releases
 
-[Github Release](https://github.com/MaterialCleaner/Media-Provider-Manager/releases/latest)
+[Github Release](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
 
 ## License
 
