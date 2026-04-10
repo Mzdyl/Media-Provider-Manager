@@ -1,16 +1,8 @@
 -allowaccessmodification
 -overloadaggressively
 
--keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase {
-    *;
-}
-
 -keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase_Impl {
-    *;
-}
-
--keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDao_Impl {
-    *;
+    <init>();
 }
 
 -keepclassmembers class me.gm.cleaner.plugin.util.FlowableSharedPreferences {
