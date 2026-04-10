@@ -35,7 +35,7 @@ interface ReadmeService {
 
     companion object {
         const val BASE_URL =
-            "https://raw.githubusercontent.com/Mzdyl/Media-Provider-Manager/main/"
+            "https://raw.githubusercontent.com/Mzdyl/Media-Provider-Manager/Re/"
 
         fun create(context: Context): ReadmeService {
             val client = OkHttpClient.Builder()
