@@ -18,8 +18,10 @@ package me.gm.cleaner.plugin.ui.module
 
 import android.content.Context
 import android.content.pm.PackageInfo
+import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.Process
+import android.os.RemoteException
 import android.provider.MediaStore
 import android.util.Log
 import android.util.SparseArray
@@ -38,6 +40,8 @@ import javax.inject.Inject
 class BinderViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
+    private val tag = "MPM/BinderVM"
+
     // Mutable state to allow refresh after module activation
     private var _binder: IBinder? = null
     private var binderQueried = false
@@ -48,28 +52,28 @@ class BinderViewModel @Inject constructor(
                 _binder = queryBinder()
                 if (_binder != null) {
                     binderQueried = true
-                    Log.d("MPM/BinderVM", "Binder acquired, locking cache")
+                    Log.d(tag, "Binder acquired, locking cache")
                 } else {
-                    Log.d("MPM/BinderVM", "Binder is null, NOT locking — allowing retry on next access")
+                    Log.d(tag, "Binder is null, NOT locking — allowing retry on next access")
                 }
             }
             return _binder
         }
     
     private fun queryBinder(): IBinder? = runCatching {
-        Log.d("MPM/BinderVM", "Executing contentResolver.query for binder...")
+        Log.d(tag, "Executing contentResolver.query for binder...")
         val cursor = context.contentResolver.query(
             MediaStore.Images.Media.INTERNAL_CONTENT_URI, null, null, null, null
         )
-        Log.d("MPM/BinderVM", "Query returned cursor: ${cursor != null}")
+        Log.d(tag, "Query returned cursor: ${cursor != null}")
         cursor?.use {
-            Log.d("MPM/BinderVM", "Cursor extras keys: ${it.extras?.keySet()?.joinToString()}")
+            Log.d(tag, "Cursor extras keys: ${it.extras?.keySet()?.joinToString()}")
             val binderResult = it.extras.getBinder(BINDER_EXTRA_KEY)
-            Log.d("MPM/BinderVM", "Extracted binder from extras: ${binderResult != null}")
+            Log.d(tag, "Extracted binder from extras: ${binderResult != null}")
             binderResult
         }
     }.onFailure { e ->
-        Log.e("MPM/BinderVM", "queryBinder failed", e)
+        Log.e(tag, "queryBinder failed", e)
     }.getOrNull()
     
     /**
@@ -77,13 +81,11 @@ class BinderViewModel @Inject constructor(
      * and wants to verify the connection without restarting the app.
      */
     fun refreshBinder() {
-        Log.d("MPM/BinderVM", "refreshBinder called: previous binderQueried=$binderQueried, previous _binder=${_binder != null}")
-        binderQueried = false
-        _binder = null
-        _service = null
+        Log.d(tag, "refreshBinder called: previous binderQueried=$binderQueried, previous _binder=${_binder != null}")
+        invalidateBinderCache()
         _binder = queryBinder()
         binderQueried = _binder != null
-        Log.d("MPM/BinderVM", "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
+        Log.d(tag, "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
     }
     
     private var _service: IManagerService? = null
@@ -94,6 +96,38 @@ class BinderViewModel @Inject constructor(
             }
             return _service
         }
+
+    private fun invalidateBinderCache() {
+        binderQueried = false
+        _binder = null
+        _service = null
+    }
+
+    private fun handleRemoteFailure(operation: String, throwable: Throwable) {
+        when (throwable) {
+            is SecurityException,
+            is DeadObjectException,
+            is RemoteException -> {
+                Log.w(tag, "$operation failed, invalidating binder cache", throwable)
+                invalidateBinderCache()
+            }
+            else -> {
+                Log.e(tag, "$operation failed", throwable)
+            }
+        }
+    }
+
+    private inline fun <T> serviceCall(
+        operation: String,
+        block: IManagerService.() -> T
+    ): T? {
+        val remoteService = service ?: return null
+        return runCatching {
+            remoteService.block()
+        }.onFailure { throwable ->
+            handleRemoteFailure(operation, throwable)
+        }.getOrNull()
+    }
     
     private val _remoteSpCacheLiveData = MutableLiveData(SparseArray<String>())
     val remoteSpCacheLiveData: LiveData<SparseArray<String>>
@@ -109,19 +143,25 @@ class BinderViewModel @Inject constructor(
         _remoteSpCacheLiveData.postValue(copy)
     }
 
-    fun pingBinder(): Boolean = binder?.pingBinder() == true
+    fun pingBinder(): Boolean = serviceCall("getModuleVersion") { moduleVersion > 0 } == true
 
     val moduleVersion: Int
-        get() = service?.moduleVersion ?: 0
+        get() = serviceCall("getModuleVersion") { moduleVersion } ?: 0
 
     fun getInstalledPackages(flags: Int): List<PackageInfo> =
-        service?.getInstalledPackages(Process.myUid() / AID_USER_OFFSET, flags)?.list ?: emptyList()
+        serviceCall("getInstalledPackages") {
+            getInstalledPackages(Process.myUid() / AID_USER_OFFSET, flags).list
+        } ?: emptyList()
 
     fun getPackageInfo(packageName: String): PackageInfo? =
-        service?.getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
+        serviceCall("getPackageInfo") {
+            getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
+        }
 
     fun readSp(who: Int): String? =
-        service?.readSp(who)?.also {
+        serviceCall("readSp($who)") {
+            readSp(who)
+        }?.also {
             remoteSpCache.put(who, it)
             notifyRemoteSpChanged()
         }
@@ -129,8 +169,11 @@ class BinderViewModel @Inject constructor(
     fun writeSp(who: Int, what: String) {
         val cacheValue = remoteSpCache[who]
         if (cacheValue != what) {
-            service?.writeSp(who, what)
-            if (service != null) {
+            val isWritten = serviceCall("writeSp($who)") {
+                writeSp(who, what)
+                true
+            } == true
+            if (isWritten) {
                 remoteSpCache.put(who, what)
                 notifyRemoteSpChanged()
             }
@@ -143,18 +186,26 @@ class BinderViewModel @Inject constructor(
     fun writeTemplateSp(what: String) = writeSp(TEMPLATE_PREFERENCES, what)
 
     fun clearAllTables() {
-        service?.clearAllTables()
+        serviceCall("clearAllTables") {
+            clearAllTables()
+        }
     }
 
     fun packageUsageTimes(operation: Int, packageNames: List<String>): Int =
-        service?.packageUsageTimes(operation, packageNames) ?: 0
+        serviceCall("packageUsageTimes") {
+            packageUsageTimes(operation, packageNames)
+        } ?: 0
 
     fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
-        service?.registerMediaChangeObserver(observer)
+        serviceCall("registerMediaChangeObserver") {
+            registerMediaChangeObserver(observer)
+        }
     }
 
     fun unregisterMediaChangeObserver(observer: IMediaChangeObserver) {
-        service?.unregisterMediaChangeObserver(observer)
+        serviceCall("unregisterMediaChangeObserver") {
+            unregisterMediaChangeObserver(observer)
+        }
     }
 
     companion object {
