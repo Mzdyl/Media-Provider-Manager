@@ -1,6 +1,18 @@
 -allowaccessmodification
 -overloadaggressively
 
+-keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase {
+    *;
+}
+
+-keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase_Impl {
+    *;
+}
+
+-keep class me.gm.cleaner.plugin.dao.MediaProviderRecordDao_Impl {
+    *;
+}
+
 -keepclassmembers class me.gm.cleaner.plugin.util.FlowableSharedPreferences {
     private final android.content.SharedPreferences$OnSharedPreferenceChangeListener listener;
 }
