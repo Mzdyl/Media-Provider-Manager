@@ -48,6 +48,10 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             L.d("QueryHooker", "Skipped: FUSE thread detected")
             return
         }
+        if (param.isSystemCallingPackage) {
+            dlog("Skipping system query from ${param.callingPackage}")
+            return
+        }
         /** ARGUMENTS */
         val uri = param.args[0] as Uri
         val projection = (param.args[1] as? Array<*>)?.mapNotNull { it as? String }?.toTypedArray()
@@ -89,13 +93,18 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             }
         }
         L.d("QueryHooker", "About to check isClientQuery: callingPkg='$callingPkg', uri=$uri")
-        if (isClientQuery(param.callingPackage, uri)) {
+        if (isClientQuery(callingPkg, uri)) {
             L.d("QueryHooker", "isClientQuery returned TRUE, handling client query")
             param.result = handleClientQuery(projection, query)
             return
         }
         L.d("QueryHooker", "isClientQuery returned FALSE, proceeding with normal hook")
-        val table = param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        val table = try {
+            param.matchUri(uri, param.isCallingPackageAllowedHidden)
+        } catch (t: Throwable) {
+            dlog("Skipping query hook because matchUri failed for $uri: $t")
+            return
+        }
         dlog("Matched table: $table")
         val dataProjection = when {
             projection == null -> null
