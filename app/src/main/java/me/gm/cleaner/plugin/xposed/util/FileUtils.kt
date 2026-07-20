@@ -16,7 +16,6 @@
 
 package me.gm.cleaner.plugin.xposed.util
 
-import android.annotation.SuppressLint
 import android.os.Environment
 import java.io.File
 
@@ -24,16 +23,38 @@ object FileUtils {
     fun contains(parent: File, child: File): Boolean = contains(parent.path, child.path)
     fun contains(parent: String, child: File): Boolean = contains(parent, child.path)
     fun contains(parent: File, child: String): Boolean = contains(parent.path, child)
-    fun contains(parent: String, child: String): Boolean =
-        child.equals(parent, true) || parent.equals(File.separator, true) ||
-                child.startsWith(parent + File.separator, true)
+    fun contains(parent: String, child: String): Boolean {
+        val normalizedParent = normalizePath(parent)
+        val normalizedChild = normalizePath(child)
+        if (normalizedChild.equals(normalizedParent, ignoreCase = true)) return true
+        if (normalizedParent == File.separator) {
+            return normalizedChild.startsWith(File.separator)
+        }
+        return normalizedChild.startsWith(
+            normalizedParent + File.separator,
+            ignoreCase = true,
+        )
+    }
 
-    val externalStorageDirPath: String = Environment.getExternalStorageDirectory().path
-    val androidDir: File = File(externalStorageDirPath, "Android")
-    val standardDirs: Array<String>
-        @Suppress("UNCHECKED_CAST")
-        @SuppressLint("SoonBlockedPrivateApi")
-        get() = Environment::class.java
-            .getDeclaredField("STANDARD_DIRECTORIES")
-            .apply { isAccessible = true }[null] as Array<String>
+    private fun normalizePath(path: String): String {
+        val normalized = File(path).normalize().path
+        return normalized.trimEnd(File.separatorChar).ifEmpty { File.separator }
+    }
+
+    val externalStorageDirPath: String by lazy { Environment.getExternalStorageDirectory().path }
+    val androidDir: File by lazy { File(externalStorageDirPath, "Android") }
+    val standardDirs: Array<String> = arrayOf(
+        "Alarms",
+        "Audiobooks",
+        "DCIM",
+        "Documents",
+        "Download",
+        "Movies",
+        "Music",
+        "Notifications",
+        "Pictures",
+        "Podcasts",
+        "Ringtones",
+        "Recordings",
+    )
 }

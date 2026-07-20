@@ -115,8 +115,6 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinxCoroutinesVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion"
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1'
-    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
-
-
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.13'
+    testImplementation 'junit:junit:4.13.2'
 }

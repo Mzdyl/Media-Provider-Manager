@@ -40,6 +40,29 @@
 
 [Github Release](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
 
+## 兼容性
+
+- 最低支持 Android 10（API 29），当前以 Android 10–16 为主要兼容范围。
+- 推荐使用较新的 LSPosed，并仅勾选模块建议的媒体存储、下载管理器和模块自身作用域。
+- MediaProvider 是系统组件，不同 ROM 的私有实现可能不同。模块在无法识别方法签名或内部 API 时会优先放行系统原操作，并在 Xposed 日志中记录原因。
+
+## 构建与验证
+
+需要 JDK 21 和 Android SDK 36：
+
+```shell
+./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew assembleRelease
+```
+
+CI 会执行单元测试、Android Lint 和 Debug APK 构建。核心规则、路径边界和数据库类型转换均应通过单元测试后再合并。
+
+## 数据与隐私
+
+使用记录保存在 MediaProvider 的应用私有数据库中，只能由本模块通过受 UID 校验的 Binder 接口读取。记录队列有容量上限，超过 90 天的记录会自动清理，也可以在设置中手动清空。
+
+规则文件使用原子写入；损坏或无法识别的规则会被禁用，而不会阻止系统 MediaProvider 启动。
+
 ## 协议
 
 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)

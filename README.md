@@ -40,6 +40,29 @@ As with native storage, Android does not offer a fine-grained management scheme 
 
 [Github Release](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
 
+## Compatibility
+
+- Android 10 (API 29) is the minimum supported version; Android 10–16 is the primary compatibility range.
+- A recent LSPosed version is recommended. Only enable the module for the suggested MediaProvider, DownloadProvider, and module-app scopes.
+- MediaProvider is a private system component and vendor implementations vary. Unknown method signatures and internal API failures are handled fail-open, with the reason written to the Xposed log.
+
+## Build and verification
+
+JDK 21 and Android SDK 36 are required:
+
+```shell
+./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew assembleRelease
+```
+
+CI runs unit tests, Android Lint, and the Debug APK build. Core rule matching, path boundaries, and database type conversions should be covered by unit tests before merging.
+
+## Data and privacy
+
+Usage records are stored in MediaProvider's private database and are exposed only through a Binder interface protected by caller UID checks. The write queue is bounded, records older than 90 days are pruned automatically, and users can clear all records manually.
+
+Rule files are written atomically. Corrupt or unsupported rules are disabled instead of preventing the system MediaProvider from starting.
+
 ## License
 
 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)

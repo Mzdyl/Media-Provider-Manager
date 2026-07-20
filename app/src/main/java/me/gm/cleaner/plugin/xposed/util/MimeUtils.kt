@@ -18,7 +18,6 @@ package me.gm.cleaner.plugin.xposed.util
 
 import android.content.ClipDescription
 import android.mtp.MtpConstants
-import android.provider.MediaStore.Files.FileColumns
 import android.webkit.MimeTypeMap
 import java.io.File
 import java.util.Locale
@@ -65,13 +64,13 @@ object MimeUtils {
      */
     @Suppress("DEPRECATION")
     fun resolveMediaType(mimeType: String?): Int = when {
-        isPlaylistMimeType(mimeType) -> FileColumns.MEDIA_TYPE_PLAYLIST
-        isSubtitleMimeType(mimeType) -> FileColumns.MEDIA_TYPE_SUBTITLE
-        isAudioMimeType(mimeType) -> FileColumns.MEDIA_TYPE_AUDIO
-        isVideoMimeType(mimeType) -> FileColumns.MEDIA_TYPE_VIDEO
-        isImageMimeType(mimeType) -> FileColumns.MEDIA_TYPE_IMAGE
-        isDocumentMimeType(mimeType) -> FileColumns.MEDIA_TYPE_DOCUMENT
-        else -> FileColumns.MEDIA_TYPE_NONE
+        isPlaylistMimeType(mimeType) -> MEDIA_TYPE_PLAYLIST
+        isSubtitleMimeType(mimeType) -> MEDIA_TYPE_SUBTITLE
+        isAudioMimeType(mimeType) -> MEDIA_TYPE_AUDIO
+        isVideoMimeType(mimeType) -> MEDIA_TYPE_VIDEO
+        isImageMimeType(mimeType) -> MEDIA_TYPE_IMAGE
+        isDocumentMimeType(mimeType) -> MEDIA_TYPE_DOCUMENT
+        else -> MEDIA_TYPE_NONE
     }
 
     /**
@@ -80,9 +79,9 @@ object MimeUtils {
      * values in place, and it's not worthwhile to build out complex matching.
      */
     fun resolveFormatCode(mimeType: String?): Int = when (resolveMediaType(mimeType)) {
-        FileColumns.MEDIA_TYPE_AUDIO -> MtpConstants.FORMAT_UNDEFINED_AUDIO
-        FileColumns.MEDIA_TYPE_VIDEO -> MtpConstants.FORMAT_UNDEFINED_VIDEO
-        FileColumns.MEDIA_TYPE_IMAGE -> MtpConstants.FORMAT_DEFINED
+        MEDIA_TYPE_AUDIO -> MtpConstants.FORMAT_UNDEFINED_AUDIO
+        MEDIA_TYPE_VIDEO -> MtpConstants.FORMAT_UNDEFINED_VIDEO
+        MEDIA_TYPE_IMAGE -> MtpConstants.FORMAT_DEFINED
         else -> MtpConstants.FORMAT_UNDEFINED
     }
 
@@ -194,4 +193,12 @@ object MimeUtils {
         if (startsWithIgnoreCase(mimeType, "text/")) return true
         return mimeType.lowercase(Locale.ROOT) in DOCUMENT_MIME_TYPES
     }
+
+    private const val MEDIA_TYPE_NONE = 0
+    private const val MEDIA_TYPE_IMAGE = 1
+    private const val MEDIA_TYPE_AUDIO = 2
+    private const val MEDIA_TYPE_VIDEO = 3
+    private const val MEDIA_TYPE_PLAYLIST = 4
+    private const val MEDIA_TYPE_SUBTITLE = 5
+    private const val MEDIA_TYPE_DOCUMENT = 6
 }
