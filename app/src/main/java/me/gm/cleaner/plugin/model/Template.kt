@@ -129,13 +129,6 @@ class Templates(json: String?) {
         }
     }
 
-    fun applyTemplates(
-        templates: List<Template>, dataList: List<String>, mimeTypeList: List<String>
-    ): List<Boolean> =
-        dataList.zip(mimeTypeList).map { (data, mimeType) ->
-            shouldIntercept(templates, data, mimeType)
-        }
-
     fun shouldIntercept(
         templates: List<Template>,
         data: String?,

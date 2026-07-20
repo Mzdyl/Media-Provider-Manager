@@ -36,7 +36,7 @@ object FileUtils {
         )
     }
 
-    private fun normalizePath(path: String): String {
+    internal fun normalizePath(path: String): String {
         val normalized = File(path).normalize().path
         return normalized.trimEnd(File.separatorChar).ifEmpty { File.separator }
     }

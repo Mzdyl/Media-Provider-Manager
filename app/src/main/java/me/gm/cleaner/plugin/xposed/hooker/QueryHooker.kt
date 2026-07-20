@@ -23,11 +23,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.OperationCanceledException
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns
-import android.util.ArrayMap
 import androidx.core.os.bundleOf
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.R
@@ -36,7 +37,6 @@ import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.ManagerService
-import me.gm.cleaner.plugin.xposed.util.FilteredCursor
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.io.File
 import java.util.function.Consumer
@@ -54,15 +54,18 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
 
     override fun afterHookedMethod(param: MethodHookParam) {
         val state = param.getObjectExtra(STATE_KEY) as? QueryState ?: return
-        if (param.hasThrowable()) return
+        if (param.hasThrowable()) {
+            retryWithoutFilter(param, state)
+            return
+        }
         val originalCursor = param.result as? Cursor ?: return
+        param.args[2] = state.originalQueryArgs
 
         try {
-            handleQueryResult(param, state, originalCursor)
+            handleQueryResult(param, state)
         } catch (t: Throwable) {
-            originalCursor.moveToPosition(-1)
             param.result = originalCursor
-            L.e("QueryHooker", "Failed to filter query result; returning original cursor", t)
+            L.e("QueryHooker", "Failed to record query result; returning original cursor", t)
         }
     }
 
@@ -97,6 +100,26 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         )
         if (templates.isEmpty() && !shouldRecord) return
 
+        val sqlFilter = QueryFilter.build(templates, table)
+        val originalQueryArgs = param.args[2]
+        val filteredQueryArgs = sqlFilter?.let {
+            val filteredQueryArgs = Bundle(queryArgs)
+            val mergedSelection = QueryFilter.merge(
+                filteredQueryArgs.getString(ContentResolver.QUERY_ARG_SQL_SELECTION),
+                filteredQueryArgs.getStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS),
+                it,
+            )
+            filteredQueryArgs.putString(
+                ContentResolver.QUERY_ARG_SQL_SELECTION,
+                mergedSelection.clause,
+            )
+            filteredQueryArgs.putStringArray(
+                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                mergedSelection.arguments.toTypedArray(),
+            )
+            filteredQueryArgs
+        }
+
         param.setObjectExtra(
             STATE_KEY,
             QueryState(
@@ -107,8 +130,36 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 table = table,
                 templates = templates,
                 shouldRecord = shouldRecord,
+                originalQueryArgs = originalQueryArgs,
+                sqlFilterApplied = sqlFilter != null,
             ),
         )
+        if (filteredQueryArgs != null) param.args[2] = filteredQueryArgs
+    }
+
+    private fun retryWithoutFilter(param: MethodHookParam, state: QueryState) {
+        if (!state.sqlFilterApplied) return
+        val filteredFailure = param.throwable ?: return
+        if (filteredFailure is OperationCanceledException) return
+
+        val retryArgs = param.args.copyOf().apply { this[2] = state.originalQueryArgs }
+        try {
+            param.result = XposedBridge.invokeOriginalMethod(
+                param.method,
+                param.thisObject,
+                retryArgs,
+            )
+            param.args[2] = state.originalQueryArgs
+            L.e(
+                "QueryHooker",
+                "MediaProvider rejected query filter for ${state.callingPackage}; " +
+                    "returned the unfiltered query instead",
+                filteredFailure,
+            )
+        } catch (retryFailure: Throwable) {
+            param.throwable = retryFailure
+            L.e("QueryHooker", "Unfiltered query retry also failed", retryFailure)
+        }
     }
 
     private fun resolveQueryArgs(
@@ -159,78 +210,22 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
     private fun handleQueryResult(
         param: MethodHookParam,
         state: QueryState,
-        originalCursor: Cursor,
     ) {
-        if (originalCursor.count == 0) return
+        if (!state.shouldRecord) return
 
-        if (state.templates.isEmpty()) {
-            if (state.shouldRecord) {
-                recordQuery(state, queryAuxiliaryRows(param, state, MAX_RECORD_SIZE))
+        val rows = queryAuxiliaryRows(param, state, MAX_RECORD_SIZE)
+        val intercepted = if (state.sqlFilterApplied) {
+            rows.map { row ->
+                service.ruleSp.templates.shouldIntercept(
+                    state.templates,
+                    row.data,
+                    row.mimeType,
+                )
             }
-            return
-        }
-
-        if (originalCursor.count > MAX_FILTER_SIZE) {
-            L.w(
-                "QueryHooker",
-                "Skipping in-memory filtering for ${originalCursor.count} rows from ${state.callingPackage}",
-            )
-            if (state.shouldRecord) {
-                recordQuery(state, queryAuxiliaryRows(param, state, MAX_RECORD_SIZE))
-            }
-            return
-        }
-
-        val dataColumn = originalCursor.getColumnIndex(FileColumns.DATA)
-        val mimeTypeColumn = originalCursor.getColumnIndex(FileColumns.MIME_TYPE)
-        val idColumn = originalCursor.getColumnIndex(FileColumns._ID)
-        val auxiliaryRows = if (dataColumn < 0 && idColumn >= 0) {
-            queryAuxiliaryRows(param, state, MAX_FILTER_SIZE).associateByTo(ArrayMap()) { it.id }
         } else {
-            emptyMap()
+            List(rows.size) { false }
         }
-
-        if (dataColumn < 0 && (idColumn < 0 || auxiliaryRows.isEmpty())) {
-            dlog("Cannot safely map paths to the original cursor; allowing query for ${state.callingPackage}")
-            if (state.shouldRecord) {
-                recordQuery(state, queryAuxiliaryRows(param, state, MAX_RECORD_SIZE))
-            }
-            return
-        }
-
-        val rows = ArrayList<MediaRow>(originalCursor.count)
-        while (originalCursor.moveToNext()) {
-            val auxiliary = if (idColumn >= 0) {
-                auxiliaryRows[originalCursor.getLong(idColumn)]
-            } else {
-                null
-            }
-            val data = auxiliary?.data ?: originalCursor.stringOrNull(dataColumn)
-            val mimeType = auxiliary?.mimeType
-                ?: originalCursor.stringOrNull(mimeTypeColumn)
-                ?: data?.let { MimeUtils.resolveMimeType(File(it)) }
-            rows += MediaRow(
-                id = if (idColumn >= 0) originalCursor.getLong(idColumn) else NO_ID,
-                data = data,
-                mimeType = mimeType,
-            )
-        }
-
-        val evaluableRows = rows.map { row ->
-            service.ruleSp.templates.shouldIntercept(
-                state.templates,
-                row.data,
-                row.mimeType,
-            )
-        }
-        val includedPositions = evaluableRows.mapIndexedNotNull { index, intercepted ->
-            index.takeUnless { intercepted }
-        }.toIntArray()
-
-        param.result = FilteredCursor.createUsingFilter(originalCursor, includedPositions)
-        if (state.shouldRecord) {
-            recordQuery(state, rows, evaluableRows)
-        }
+        recordQuery(state, rows, intercepted)
     }
 
     private fun queryAuxiliaryRows(
@@ -374,6 +369,8 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val table: Int,
         val templates: List<Template>,
         val shouldRecord: Boolean,
+        val originalQueryArgs: Any?,
+        val sqlFilterApplied: Boolean,
     )
 
     private data class MediaRow(
@@ -401,7 +398,6 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         private const val INCLUDED_DEFAULT_DIRECTORIES = "android:included-default-directories"
         private const val TYPE_QUERY = 0
         private const val MAX_RECORD_SIZE = 1_000
-        private const val MAX_FILTER_SIZE = 20_000
         private const val NO_ID = -1L
     }
 }
