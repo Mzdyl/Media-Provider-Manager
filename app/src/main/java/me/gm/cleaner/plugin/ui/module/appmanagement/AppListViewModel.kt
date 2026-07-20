@@ -26,7 +26,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.gm.cleaner.plugin.dao.RootPreferences
 import me.gm.cleaner.plugin.dao.RootPreferences.SORT_BY_APP_NAME
 import me.gm.cleaner.plugin.dao.RootPreferences.SORT_BY_UPDATE_TIME
@@ -127,7 +129,7 @@ class AppListViewModel(
     ) {
         viewModelScope.launch {
             _appsFlow.value = AppListState.Loading(0, currentVisibleList())
-            while (!binderViewModel.pingBinder()) {
+            while (!withContext(Dispatchers.IO) { binderViewModel.pingBinder() }) {
                 kotlinx.coroutines.delay(500)
             }
             val list = AppListLoader().load(

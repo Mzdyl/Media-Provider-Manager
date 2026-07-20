@@ -51,7 +51,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +71,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
@@ -106,23 +109,29 @@ fun UsageRecordScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var detailRecord by remember { mutableStateOf<MediaProviderRecord?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(viewModel, binderViewModel) {
-        while (!binderViewModel.pingBinder()) {
-            kotlinx.coroutines.delay(500)
-        }
-        viewModel.reload()
-    }
-
-    DisposableEffect(binderViewModel) {
-        val observer = object : IMediaChangeObserver.Stub() {
+    val copiedMessage = stringResource(R.string.copied)
+    val observer = remember(viewModel) {
+        object : IMediaChangeObserver.Stub() {
             override fun onChange() {
                 viewModel.reload()
             }
         }
-        binderViewModel.registerMediaChangeObserver(observer)
-        onDispose {
-            binderViewModel.unregisterMediaChangeObserver(observer)
+    }
+
+    LaunchedEffect(viewModel, binderViewModel, observer) {
+        while (!withContext(Dispatchers.IO) { binderViewModel.pingBinder() }) {
+            kotlinx.coroutines.delay(500)
+        }
+        withContext(Dispatchers.IO) {
+            binderViewModel.registerMediaChangeObserver(observer)
+        }
+        viewModel.reload()
+        try {
+            awaitCancellation()
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) {
+                binderViewModel.unregisterMediaChangeObserver(observer)
+            }
         }
     }
 
@@ -224,8 +233,12 @@ fun UsageRecordScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_clear)) },
                                 onClick = {
-                                    binderViewModel.clearAllTables()
-                                    viewModel.reload()
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            binderViewModel.clearAllTables()
+                                        }
+                                        viewModel.reload()
+                                    }
                                     showFilterMenu = false
                                 },
                                 leadingIcon = {
@@ -330,7 +343,7 @@ fun UsageRecordScreen(
                 clipboardManager.setPrimaryClip(ClipData.newPlainText(null, data))
                 detailRecord = null
                 scope.launch {
-                    snackbarHostState.showSnackbar(context.getString(R.string.copied, data))
+                    snackbarHostState.showSnackbar(copiedMessage.format(data))
                 }
             },
         )

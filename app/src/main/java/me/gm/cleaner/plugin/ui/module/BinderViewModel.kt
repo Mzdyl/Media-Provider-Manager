@@ -28,6 +28,7 @@ import android.util.SparseArray
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import me.gm.cleaner.plugin.IManagerService
@@ -35,19 +36,24 @@ import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class BinderViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
     private val tag = "MPM/BinderVM"
+    private val connectionLock = Any()
+    private val spCacheLock = Any()
+    private val spOperationLock = Any()
 
     // Mutable state to allow refresh after module activation
     private var _binder: IBinder? = null
     private var binderQueried = false
     
     private val binder: IBinder?
-        get() {
+        get() = synchronized(connectionLock) {
             if (!binderQueried) {
                 _binder = queryBinder()
                 if (_binder != null) {
@@ -57,7 +63,7 @@ class BinderViewModel @Inject constructor(
                     Log.d(tag, "Binder is null, NOT locking — allowing retry on next access")
                 }
             }
-            return _binder
+            _binder
         }
     
     private fun queryBinder(): IBinder? = runCatching {
@@ -81,26 +87,30 @@ class BinderViewModel @Inject constructor(
      * and wants to verify the connection without restarting the app.
      */
     fun refreshBinder() {
-        Log.d(tag, "refreshBinder called: previous binderQueried=$binderQueried, previous _binder=${_binder != null}")
-        invalidateBinderCache()
-        _binder = queryBinder()
-        binderQueried = _binder != null
-        Log.d(tag, "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
+        synchronized(connectionLock) {
+            Log.d(tag, "refreshBinder called: previous binderQueried=$binderQueried, previous _binder=${_binder != null}")
+            invalidateBinderCache()
+            _binder = queryBinder()
+            binderQueried = _binder != null
+            Log.d(tag, "After refreshBinder: binderQueried=$binderQueried, _binder=${_binder != null}")
+        }
     }
     
     private var _service: IManagerService? = null
     private val service: IManagerService?
-        get() {
+        get() = synchronized(connectionLock) {
             if (_service == null) {
                 _service = binder?.let { IManagerService.Stub.asInterface(it) }
             }
-            return _service
+            _service
         }
 
     private fun invalidateBinderCache() {
-        binderQueried = false
-        _binder = null
-        _service = null
+        synchronized(connectionLock) {
+            binderQueried = false
+            _binder = null
+            _service = null
+        }
     }
 
     private fun handleRemoteFailure(operation: String, throwable: Throwable) {
@@ -130,15 +140,18 @@ class BinderViewModel @Inject constructor(
     }
     
     private val _remoteSpCacheLiveData = MutableLiveData(SparseArray<String>())
+    private val remoteSpCache = SparseArray<String>()
     val remoteSpCacheLiveData: LiveData<SparseArray<String>>
         get() = _remoteSpCacheLiveData
-    val remoteSpCache: SparseArray<String>
-        get() = _remoteSpCacheLiveData.value!!
 
-    fun notifyRemoteSpChanged() {
-        val copy = SparseArray<String>(remoteSpCache.size())
-        for (i in 0 until remoteSpCache.size()) {
-            copy.put(remoteSpCache.keyAt(i), remoteSpCache.valueAt(i))
+    private fun updateRemoteSpCache(who: Int, value: String) {
+        val copy = synchronized(spCacheLock) {
+            remoteSpCache.put(who, value)
+            SparseArray<String>(remoteSpCache.size()).also { copy ->
+                for (i in 0 until remoteSpCache.size()) {
+                    copy.put(remoteSpCache.keyAt(i), remoteSpCache.valueAt(i))
+                }
+            }
         }
         _remoteSpCacheLiveData.postValue(copy)
     }
@@ -158,24 +171,22 @@ class BinderViewModel @Inject constructor(
             getPackageInfo(packageName, 0, Process.myUid() / AID_USER_OFFSET)
         }
 
-    fun readSp(who: Int): String? =
-        serviceCall("readSp($who)") {
-            readSp(who)
-        }?.also {
-            remoteSpCache.put(who, it)
-            notifyRemoteSpChanged()
-        }
+    fun readSp(who: Int): String? = synchronized(spOperationLock) {
+        serviceCall("readSp($who)") { readSp(who) }
+            ?.also { updateRemoteSpCache(who, it) }
+    }
 
-    fun writeSp(who: Int, what: String) {
-        val cacheValue = remoteSpCache[who]
+    fun writeSp(who: Int, what: String) = synchronized(spOperationLock) {
+        val cacheValue = synchronized(spCacheLock) {
+            remoteSpCache[who]
+        }
         if (cacheValue != what) {
             val isWritten = serviceCall("writeSp($who)") {
                 writeSp(who, what)
                 true
             } == true
             if (isWritten) {
-                remoteSpCache.put(who, what)
-                notifyRemoteSpChanged()
+                updateRemoteSpCache(who, what)
             }
         }
     }
@@ -184,6 +195,14 @@ class BinderViewModel @Inject constructor(
     fun readTemplateSp(): String? = readSp(TEMPLATE_PREFERENCES)
     fun writeRootSp(what: String) = writeSp(ROOT_PREFERENCES, what)
     fun writeTemplateSp(what: String) = writeSp(TEMPLATE_PREFERENCES, what)
+
+    fun writeRootSpAsync(what: String) {
+        viewModelScope.launch(Dispatchers.IO) { writeRootSp(what) }
+    }
+
+    fun writeTemplateSpAsync(what: String) {
+        viewModelScope.launch(Dispatchers.IO) { writeTemplateSp(what) }
+    }
 
     fun clearAllTables() {
         serviceCall("clearAllTables") {

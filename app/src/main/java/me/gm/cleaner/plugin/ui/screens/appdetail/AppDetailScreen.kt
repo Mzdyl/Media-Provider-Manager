@@ -17,6 +17,7 @@
 package me.gm.cleaner.plugin.ui.screens.appdetail
 
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -51,7 +52,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +77,19 @@ import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.screens.templating.templateFilterPathSummary
 import me.gm.cleaner.plugin.ui.screens.templating.templateMediaTypeSummary
 import me.gm.cleaner.plugin.ui.screens.templating.templateOperationSummary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private data class AppDetailOverview(
+    val packageInfo: PackageInfo?,
+    val usageCounts: List<UsageCount>,
+)
+
+private data class UsageCount(
+    val resourceId: Int,
+    val count: Int,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,19 +104,29 @@ fun AppDetailScreen(
 ) {
     val appTemplates = templates.filter { packageName in (it.applyToApp ?: emptyList()) }
     val availableTemplates = templates.filter { packageName !in (it.applyToApp ?: emptyList()) }
-    val context = LocalContext.current
-    val packageInfo = remember(packageName, binderViewModel) {
-        binderViewModel.getPackageInfo(packageName)
-    }
-    val usageTimes = remember(packageName, binderViewModel) {
-        listOf(
-            OP_QUERY to R.string.query_times,
-            OP_INSERT to R.string.insert_times,
-            OP_DELETE to R.string.delete_times,
-        ).mapNotNull { (operation, resId) ->
-            val count = binderViewModel.packageUsageTimes(operation, listOf(packageName))
-            if (count == 0) null else context.getString(resId, count)
+    val scope = rememberCoroutineScope()
+    val overview by produceState<AppDetailOverview?>(
+        initialValue = null,
+        key1 = packageName,
+        key2 = binderViewModel,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            AppDetailOverview(
+                packageInfo = binderViewModel.getPackageInfo(packageName),
+                usageCounts = listOf(
+                    OP_QUERY to R.string.query_times,
+                    OP_INSERT to R.string.insert_times,
+                    OP_DELETE to R.string.delete_times,
+                ).mapNotNull { (operation, resId) ->
+                    val count = binderViewModel.packageUsageTimes(operation, listOf(packageName))
+                    if (count == 0) null else UsageCount(resId, count)
+                },
+            )
         }
+    }
+    val packageInfo = overview?.packageInfo
+    val usageTimes = overview?.usageCounts.orEmpty().map { usageCount ->
+        stringResource(usageCount.resourceId, usageCount.count)
     }
 
     Scaffold(
@@ -146,7 +172,14 @@ fun AppDetailScreen(
                         template = template,
                         onClick = { onEditTemplate(template) },
                         onRemove = {
-                            updateTemplateApplyToApp(binderViewModel, template, packageName, remove = true)
+                            scope.launch(Dispatchers.IO) {
+                                updateTemplateApplyToApp(
+                                    binderViewModel,
+                                    template,
+                                    packageName,
+                                    remove = true,
+                                )
+                            }
                         },
                     )
                 }
@@ -201,12 +234,14 @@ fun AppDetailScreen(
                     AvailableTemplateCard(
                         template = template,
                         onAdd = {
-                            updateTemplateApplyToApp(
-                                binderViewModel = binderViewModel,
-                                template = template,
-                                packageName = packageName,
-                                remove = false,
-                            )
+                            scope.launch(Dispatchers.IO) {
+                                updateTemplateApplyToApp(
+                                    binderViewModel = binderViewModel,
+                                    template = template,
+                                    packageName = packageName,
+                                    remove = false,
+                                )
+                            }
                         },
                     )
                 }

@@ -45,8 +45,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.RootPreferences
 import me.gm.cleaner.plugin.ui.components.StatusBadgeTone
@@ -185,19 +187,27 @@ private fun DrawerHeader(
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val moduleActivatedMessage = stringResource(R.string.module_activated)
     var pollingJob by remember { mutableStateOf<Job?>(null) }
 
     suspend fun refreshActivationState() {
         isRefreshing = true
-        val frameworkActive = ModuleActivationStore.isAppProcessHooked(context)
-        binderViewModel.refreshBinder()
-        val scopeActive = binderViewModel.pingBinder()
+        val (frameworkActive, scopeActive, remoteVersion) = withContext(Dispatchers.IO) {
+            val frameworkActive = ModuleActivationStore.isAppProcessHooked(context)
+            binderViewModel.refreshBinder()
+            val scopeActive = binderViewModel.pingBinder()
+            Triple(
+                frameworkActive,
+                scopeActive,
+                if (scopeActive) binderViewModel.moduleVersion else 0,
+            )
+        }
         activationState = when {
             scopeActive -> ModuleActivationState.Active
             frameworkActive -> ModuleActivationState.ScopeRestartRequired
             else -> ModuleActivationState.NotActive
         }
-        moduleVersion = if (scopeActive) binderViewModel.moduleVersion else 0
+        moduleVersion = remoteVersion
         isRefreshing = false
     }
 
@@ -207,13 +217,16 @@ private fun DrawerHeader(
         }
         pollingJob = scope.launch {
             while (activationState == ModuleActivationState.ScopeRestartRequired) {
-                binderViewModel.refreshBinder()
-                if (binderViewModel.pingBinder()) {
+                val remoteVersion = withContext(Dispatchers.IO) {
+                    binderViewModel.refreshBinder()
+                    if (binderViewModel.pingBinder()) binderViewModel.moduleVersion else 0
+                }
+                if (remoteVersion > 0) {
                     activationState = ModuleActivationState.Active
-                    moduleVersion = binderViewModel.moduleVersion
+                    moduleVersion = remoteVersion
                     Toast.makeText(
                         context,
-                        context.getString(R.string.module_activated),
+                        moduleActivatedMessage,
                         Toast.LENGTH_SHORT,
                     ).show()
                     break

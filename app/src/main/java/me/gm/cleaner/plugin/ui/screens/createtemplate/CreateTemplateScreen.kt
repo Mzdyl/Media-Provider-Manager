@@ -18,6 +18,7 @@ package me.gm.cleaner.plugin.ui.screens.createtemplate
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Log
 import android.provider.MediaStore.Files.FileColumns
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,8 +63,16 @@ import me.gm.cleaner.plugin.ui.components.SectionHeader
 import me.gm.cleaner.plugin.ui.module.BinderViewModel
 import me.gm.cleaner.plugin.ui.screens.templating.hookOperationLabel
 import me.gm.cleaner.plugin.ui.screens.templating.mediaTypeLabel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private const val MEDIA_TYPE_PLAYLIST = 4
+private const val AUTO_SAVE_DELAY_MS = 400L
+private const val TAG = "MPM/CreateTemplate"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,10 +83,11 @@ fun CreateTemplateScreen(
     permittedMediaTypes: List<String>?,
     filterPaths: List<String>?,
     onNavigateBack: () -> Unit,
-    onSave: () -> Unit,
     binderViewModel: BinderViewModel,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val saveMutex = remember { Mutex() }
     val isEditing = templateName != null
 
     // Form state
@@ -110,28 +121,36 @@ fun CreateTemplateScreen(
         selectedFilterPaths = (selectedFilterPaths + path).distinct().sorted()
     }
 
-    // Auto-save function
-    fun saveTemplate() {
-        if (name.isBlank() || selectedOperations.isEmpty()) return
+    suspend fun saveTemplate() {
+        saveMutex.withLock {
+            if (name.isBlank() || selectedOperations.isEmpty()) return@withLock
 
-        val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
-        val nameConflict = existingTemplates.any {
-            it.templateName == name && it.templateName != templateName
+            val currentName = name
+            val currentOperations = selectedOperations.toList()
+            val currentMediaTypes = selectedMediaTypes.toList()
+            val currentFilterPaths = selectedFilterPaths
+
+            withContext(Dispatchers.IO) {
+                val existingTemplates = Templates(binderViewModel.readTemplateSp()).values
+                val nameConflict = existingTemplates.any {
+                    it.templateName == currentName && it.templateName != templateName
+                }
+                if (nameConflict) return@withContext
+
+                val template = Template(
+                    templateName = currentName,
+                    hookOperation = currentOperations,
+                    applyToApp = originalPackageNames,
+                    permittedMediaTypes = currentMediaTypes.ifEmpty { null },
+                    filterPath = currentFilterPaths.ifEmpty { null },
+                )
+
+                val json = Template.GSON.toJson(
+                    existingTemplates.filterNot { it.templateName == templateName } + template
+                )
+                binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
+            }
         }
-        if (nameConflict) return
-
-        val template = Template(
-            templateName = name,
-            hookOperation = selectedOperations.toList(),
-            applyToApp = originalPackageNames,
-            permittedMediaTypes = selectedMediaTypes.toList().ifEmpty { null },
-            filterPath = selectedFilterPaths.ifEmpty { null },
-        )
-
-        val json = Template.GSON.toJson(
-            existingTemplates.filterNot { it.templateName == templateName } + template
-        )
-        binderViewModel.writeSp(TEMPLATE_PREFERENCES, json)
     }
 
     // Load existing template data on first render
@@ -142,7 +161,9 @@ fun CreateTemplateScreen(
     // Auto-save when state changes (after initial load)
     LaunchedEffect(name, selectedOperations, selectedMediaTypes, selectedFilterPaths) {
         if (hasLoaded) {
-            saveTemplate()
+            delay(AUTO_SAVE_DELAY_MS)
+            runCatching { saveTemplate() }
+                .onFailure { Log.e(TAG, "Unable to auto-save template", it) }
         }
     }
 
@@ -155,8 +176,11 @@ fun CreateTemplateScreen(
                     stringResource(R.string.create_template_title)
                 },
                 onNavigateBack = {
-                    saveTemplate()
-                    onNavigateBack()
+                    scope.launch {
+                        runCatching { saveTemplate() }
+                            .onFailure { Log.e(TAG, "Unable to save template", it) }
+                        onNavigateBack()
+                    }
                 },
             )
         },
