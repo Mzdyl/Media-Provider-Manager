@@ -2,6 +2,7 @@ package me.gm.cleaner.plugin.xposed.hooker
 
 import me.gm.cleaner.plugin.model.Template
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -58,6 +59,101 @@ class QueryFilterTest {
 
         assertEquals("(mime_type IS NULL OR media_type IN (?, ?))", filter.clause)
         assertEquals(listOf("1", "3"), filter.arguments)
+    }
+
+    @Test
+    fun combinesPermittedTypesAcrossTemplatesAsAUnion() {
+        val filter = QueryFilter.build(
+            listOf(
+                template(permittedMediaTypes = listOf(1)),
+                template(permittedMediaTypes = listOf(3)),
+            ),
+            MediaTables.FILES,
+        )!!
+
+        assertEquals("(mime_type IS NULL OR media_type IN (?, ?))", filter.clause)
+        assertEquals(listOf("1", "3"), filter.arguments)
+    }
+
+    @Test
+    fun allPermittedTypesDoNotAddARejectedMediaTypeToken() {
+        val filter = QueryFilter.build(
+            listOf(
+                template(
+                    permittedMediaTypes = (0..6).toList(),
+                    filterPath = listOf("/storage/emulated/0/Pictures/Private"),
+                ),
+            ),
+            MediaTables.IMAGES_MEDIA,
+        )!!
+
+        assertFalse(filter.clause.contains("media_type"))
+        assertEquals(2, filter.arguments.size)
+    }
+
+    @Test
+    fun allPermittedTypesAreNeutralWhenCombinedWithARestriction() {
+        val filter = QueryFilter.build(
+            listOf(
+                template(permittedMediaTypes = (0..6).toList()),
+                template(permittedMediaTypes = listOf(1)),
+            ),
+            MediaTables.FILES,
+        )!!
+
+        assertEquals("(mime_type IS NULL OR media_type IN (?))", filter.clause)
+        assertEquals(listOf("1"), filter.arguments)
+    }
+
+    @Test
+    fun collectionTablesUseTheirFixedMediaType() {
+        assertNull(
+            QueryFilter.build(
+                listOf(template(permittedMediaTypes = listOf(1))),
+                MediaTables.IMAGES_MEDIA,
+            ),
+        )
+        assertEquals(
+            "0",
+            QueryFilter.build(
+                listOf(template(permittedMediaTypes = listOf(3))),
+                MediaTables.IMAGES_MEDIA,
+            )!!.clause,
+        )
+    }
+
+    @Test
+    fun unsupportedMediaTypeChecksKeepPathFilteringWithoutInvalidSql() {
+        val partialFilter = QueryFilter.build(
+            listOf(
+                template(
+                    permittedMediaTypes = listOf(1),
+                    filterPath = listOf("/storage/emulated/0/Download/Private"),
+                ),
+            ),
+            MediaTables.DOWNLOADS,
+        )!!
+        assertFalse(partialFilter.clause.contains("media_type"))
+        assertFalse(partialFilter.filtersMediaTypes)
+
+        val pathOnly = QueryFilter.build(
+            listOf(
+                template(
+                    permittedMediaTypes = (0..6).toList(),
+                    filterPath = listOf("/storage/emulated/0/Download/Private"),
+                ),
+            ),
+            MediaTables.DOWNLOADS,
+        )!!
+        assertFalse(pathOnly.clause.contains("media_type"))
+        assertTrue(pathOnly.filtersMediaTypes)
+
+        assertNull(
+            QueryFilter.build(
+                listOf(template(permittedMediaTypes = listOf(1))),
+                MediaTables.DOWNLOADS,
+            ),
+        )
     }
 
     @Test

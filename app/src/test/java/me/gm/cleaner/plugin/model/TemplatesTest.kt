@@ -54,6 +54,46 @@ class TemplatesTest {
     }
 
     @Test
+    fun combinesPermittedTypesAcrossTemplatesAsAUnion() {
+        val images = Template(
+            templateName = "images",
+            hookOperation = listOf("query"),
+            applyToApp = listOf("com.example.reader"),
+            permittedMediaTypes = listOf(1),
+            filterPath = null,
+        )
+        val videos = images.copy(
+            templateName = "videos",
+            permittedMediaTypes = listOf(3),
+        )
+        val templates = Templates(null)
+
+        assertFalse(templates.shouldIntercept(listOf(images, videos), null, "image/jpeg"))
+        assertFalse(templates.shouldIntercept(listOf(images, videos), null, "video/mp4"))
+        assertTrue(templates.shouldIntercept(listOf(images, videos), null, "audio/mpeg"))
+    }
+
+    @Test
+    fun allPermittedTypesAreNeutralWhenCombinedWithARestriction() {
+        val unrestricted = Template(
+            templateName = "path policy",
+            hookOperation = listOf("query"),
+            applyToApp = listOf("com.example.reader"),
+            permittedMediaTypes = (0..6).toList(),
+            filterPath = listOf("/storage/emulated/0/Private"),
+        )
+        val images = unrestricted.copy(
+            templateName = "images",
+            permittedMediaTypes = listOf(1),
+            filterPath = null,
+        )
+        val templates = Templates(null)
+
+        assertFalse(templates.shouldIntercept(listOf(unrestricted, images), null, "image/jpeg"))
+        assertTrue(templates.shouldIntercept(listOf(unrestricted, images), null, "video/mp4"))
+    }
+
+    @Test
     fun rejectsDuplicateNamesAndUnsupportedOperations() {
         assertThrows(IllegalArgumentException::class.java) {
             Templates(

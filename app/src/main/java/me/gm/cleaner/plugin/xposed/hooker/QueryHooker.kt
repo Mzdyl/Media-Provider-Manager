@@ -132,6 +132,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 shouldRecord = shouldRecord,
                 originalQueryArgs = originalQueryArgs,
                 sqlFilterApplied = sqlFilter != null,
+                mediaTypeFilterApplied = sqlFilter?.filtersMediaTypes == true,
             ),
         )
         if (filteredQueryArgs != null) param.args[2] = filteredQueryArgs
@@ -152,8 +153,8 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
             param.args[2] = state.originalQueryArgs
             L.e(
                 "QueryHooker",
-                "MediaProvider rejected query filter for ${state.callingPackage}; " +
-                    "returned the unfiltered query instead",
+                "MediaProvider rejected query filter for ${state.callingPackage} " +
+                    "at ${state.uri} (table=${state.table}); returned the unfiltered query instead",
                 filteredFailure,
             )
         } catch (retryFailure: Throwable) {
@@ -219,7 +220,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
                 service.ruleSp.templates.shouldIntercept(
                     state.templates,
                     row.data,
-                    row.mimeType,
+                    row.mimeType.takeIf { state.mediaTypeFilterApplied },
                 )
             }
         } else {
@@ -371,6 +372,7 @@ class QueryHooker(private val service: ManagerService) : XC_MethodHook(), MediaP
         val shouldRecord: Boolean,
         val originalQueryArgs: Any?,
         val sqlFilterApplied: Boolean,
+        val mediaTypeFilterApplied: Boolean,
     )
 
     private data class MediaRow(

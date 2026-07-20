@@ -50,6 +50,7 @@ class Templates(json: String?) {
     // Maximum cache size to prevent memory leaks
     companion object {
         private const val MAX_CACHE_SIZE = 200
+        private val ALL_MEDIA_TYPES = (0..6).toSet()
     }
 
     init {
@@ -133,13 +134,17 @@ class Templates(json: String?) {
         templates: List<Template>,
         data: String?,
         mimeType: String?,
-    ): Boolean = templates.any { template ->
-        val permittedTypes = template.permittedMediaTypes
-        val mediaTypeRejected = mimeType != null &&
-            !permittedTypes.isNullOrEmpty() &&
+    ): Boolean {
+        val permittedTypes = templates.asSequence()
+            .map { it.permittedMediaTypes.orEmpty().toSet() }
+            .filter { it.isNotEmpty() && it != ALL_MEDIA_TYPES }
+            .flatten()
+            .toSet()
+        val mediaTypeRejected = mimeType != null && permittedTypes.isNotEmpty() &&
             MimeUtils.resolveMediaType(mimeType) !in permittedTypes
-        val pathRejected = data != null &&
-            template.filterPath?.any { FileUtils.contains(it, data) } == true
-        mediaTypeRejected || pathRejected
+        val pathRejected = data != null && templates.asSequence()
+            .flatMap { it.filterPath.orEmpty().asSequence() }
+            .any { FileUtils.contains(it, data) }
+        return mediaTypeRejected || pathRejected
     }
 }

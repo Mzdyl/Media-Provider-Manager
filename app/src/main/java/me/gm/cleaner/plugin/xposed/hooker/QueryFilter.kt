@@ -23,6 +23,7 @@ import me.gm.cleaner.plugin.xposed.util.FileUtils
 internal data class SqlSelection(
     val clause: String,
     val arguments: List<String>,
+    val filtersMediaTypes: Boolean = true,
 )
 
 /** Compiles query templates into predicates that MediaProvider applies before pagination. */
@@ -32,23 +33,34 @@ internal object QueryFilter {
         val capabilities = capabilitiesFor(table) ?: return null
         val clauses = mutableListOf<String>()
         val arguments = mutableListOf<String>()
+        var filtersMediaTypes = true
 
-        templates.forEach { template ->
-            val permittedTypes = template.permittedMediaTypes.orEmpty().distinct()
-            if (permittedTypes.isNotEmpty()) {
-                when {
-                    capabilities.hasMediaColumns -> {
-                        clauses += "(${FileColumns.MIME_TYPE} IS NULL OR " +
-                            "${FileColumns.MEDIA_TYPE} IN (${placeholders(permittedTypes.size)}))"
-                        arguments += permittedTypes.map(Int::toString)
-                    }
-
-                    capabilities.fixedMediaType !in permittedTypes -> clauses += "0"
+        val permittedTypes = templates.asSequence()
+            .map { it.permittedMediaTypes.orEmpty().toSet() }
+            .filter { it.isNotEmpty() && it != ALL_MEDIA_TYPES }
+            .flatten()
+            .toSortedSet()
+        if (permittedTypes.isNotEmpty()) {
+            when (capabilities.mediaTypeStrategy) {
+                MediaTypeStrategy.COLUMN -> {
+                    clauses += "(${FileColumns.MIME_TYPE} IS NULL OR " +
+                        "${FileColumns.MEDIA_TYPE} IN (${placeholders(permittedTypes.size)}))"
+                    arguments += permittedTypes.map(Int::toString)
                 }
-            }
 
-            if (capabilities.hasDataColumn) {
-                template.filterPath.orEmpty().distinct().forEach { path ->
+                MediaTypeStrategy.FIXED -> if (capabilities.fixedMediaType !in permittedTypes) {
+                    clauses += "0"
+                }
+
+                MediaTypeStrategy.UNSUPPORTED -> filtersMediaTypes = false
+            }
+        }
+
+        if (capabilities.hasDataColumn) {
+            templates.asSequence()
+                .flatMap { it.filterPath.orEmpty().asSequence() }
+                .distinct()
+                .forEach { path ->
                     val normalizedPath = FileUtils.normalizePath(path)
                     clauses += "(${FileColumns.DATA} IS NULL OR " +
                         "(LOWER(${FileColumns.DATA}) != LOWER(?) AND " +
@@ -60,11 +72,10 @@ internal object QueryFilter {
                         escapeLike(normalizedPath) + "/%"
                     }
                 }
-            }
         }
 
         return clauses.takeIf { it.isNotEmpty() }
-            ?.let { SqlSelection(it.joinToString(" AND "), arguments) }
+            ?.let { SqlSelection(it.joinToString(" AND "), arguments, filtersMediaTypes) }
     }
 
     fun merge(
@@ -77,7 +88,11 @@ internal object QueryFilter {
         } else {
             "($existingClause) AND (${filter.clause})"
         }
-        return SqlSelection(clause, existingArguments.orEmpty().toList() + filter.arguments)
+        return SqlSelection(
+            clause,
+            existingArguments.orEmpty().toList() + filter.arguments,
+            filter.filtersMediaTypes,
+        )
     }
 
     private fun placeholders(count: Int): String = List(count) { "?" }.joinToString(", ")
@@ -90,23 +105,39 @@ internal object QueryFilter {
     }
 
     private fun capabilitiesFor(table: Int): TableCapabilities? = when (table) {
+        MediaTables.FILES,
+        MediaTables.FILES_ID,
+        -> TableCapabilities(
+            hasDataColumn = true,
+            mediaTypeStrategy = MediaTypeStrategy.COLUMN,
+        )
+
         MediaTables.IMAGES_MEDIA,
         MediaTables.IMAGES_MEDIA_ID,
+        -> TableCapabilities.fixed(MEDIA_TYPE_IMAGE)
+
         MediaTables.AUDIO_MEDIA,
         MediaTables.AUDIO_MEDIA_ID,
         MediaTables.AUDIO_GENRES_ID_MEMBERS,
         MediaTables.AUDIO_GENRES_ALL_MEMBERS,
-        MediaTables.AUDIO_PLAYLISTS,
-        MediaTables.AUDIO_PLAYLISTS_ID,
         MediaTables.AUDIO_PLAYLISTS_ID_MEMBERS,
         MediaTables.AUDIO_PLAYLISTS_ID_MEMBERS_ID,
+        -> TableCapabilities.fixed(MEDIA_TYPE_AUDIO)
+
+        MediaTables.AUDIO_PLAYLISTS,
+        MediaTables.AUDIO_PLAYLISTS_ID,
+        -> TableCapabilities.fixed(MEDIA_TYPE_PLAYLIST)
+
         MediaTables.VIDEO_MEDIA,
         MediaTables.VIDEO_MEDIA_ID,
-        MediaTables.FILES,
-        MediaTables.FILES_ID,
+        -> TableCapabilities.fixed(MEDIA_TYPE_VIDEO)
+
         MediaTables.DOWNLOADS,
         MediaTables.DOWNLOADS_ID,
-        -> TableCapabilities(hasDataColumn = true, hasMediaColumns = true)
+        -> TableCapabilities(
+            hasDataColumn = true,
+            mediaTypeStrategy = MediaTypeStrategy.UNSUPPORTED,
+        )
 
         MediaTables.IMAGES_MEDIA_ID_THUMBNAIL,
         MediaTables.IMAGES_THUMBNAILS,
@@ -117,20 +148,34 @@ internal object QueryFilter {
         MediaTables.AUDIO_ALBUMART,
         MediaTables.AUDIO_ALBUMART_ID,
         MediaTables.AUDIO_ALBUMART_FILE_ID,
-        -> TableCapabilities(
-            hasDataColumn = true,
-            hasMediaColumns = false,
-            fixedMediaType = MEDIA_TYPE_IMAGE,
-        )
+        -> TableCapabilities.fixed(MEDIA_TYPE_IMAGE)
 
         else -> null
     }
 
     private data class TableCapabilities(
         val hasDataColumn: Boolean,
-        val hasMediaColumns: Boolean,
+        val mediaTypeStrategy: MediaTypeStrategy,
         val fixedMediaType: Int? = null,
-    )
+    ) {
+        companion object {
+            fun fixed(mediaType: Int) = TableCapabilities(
+                hasDataColumn = true,
+                mediaTypeStrategy = MediaTypeStrategy.FIXED,
+                fixedMediaType = mediaType,
+            )
+        }
+    }
 
+    private enum class MediaTypeStrategy {
+        COLUMN,
+        FIXED,
+        UNSUPPORTED,
+    }
+
+    private val ALL_MEDIA_TYPES = (0..6).toSortedSet()
     private const val MEDIA_TYPE_IMAGE = 1
+    private const val MEDIA_TYPE_AUDIO = 2
+    private const val MEDIA_TYPE_VIDEO = 3
+    private const val MEDIA_TYPE_PLAYLIST = 4
 }
