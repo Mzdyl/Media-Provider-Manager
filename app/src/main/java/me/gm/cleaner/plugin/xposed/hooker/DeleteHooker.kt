@@ -29,6 +29,7 @@ import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
+import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.io.File
@@ -36,6 +37,14 @@ import java.io.File
 class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
+        try {
+            recordDelete(param)
+        } catch (t: Throwable) {
+            L.e("DeleteHooker", "Delete hook failed; allowing original delete", t)
+        }
+    }
+
+    private fun recordDelete(param: MethodHookParam) {
         if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }

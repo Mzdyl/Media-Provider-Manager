@@ -23,6 +23,9 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.ProviderInfo
 import android.content.res.AssetManager
 import android.content.res.Resources
+import android.os.Build
+import android.os.Bundle
+import android.os.CancellationSignal
 import android.provider.MediaStore
 import de.robv.android.xposed.*
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
@@ -34,8 +37,12 @@ import me.gm.cleaner.plugin.xposed.hooker.FileHooker
 import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
 import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteInit {
+
+    private val mediaProviderInitialized = AtomicBoolean(false)
+    private val downloadProviderInitialized = AtomicBoolean(false)
 
     @Throws(Throwable::class)
     private fun onModuleAppLoaded(lpparam: LoadPackageParam) {
@@ -57,6 +64,7 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
 
     @Throws(Throwable::class)
     private fun onMediaProviderLoaded(lpparam: LoadPackageParam, context: Context) {
+        if (!mediaProviderInitialized.compareAndSet(false, true)) return
         L.d("MediaProvider loaded: ${lpparam.packageName}")
         val mediaProvider = try {
             XposedHelpers.findClass(
@@ -64,12 +72,14 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
             )
         } catch (e: XposedHelpers.ClassNotFoundError) {
             L.e("MediaProvider class not found!", e)
+            mediaProviderInitialized.set(false)
             return
         }
-        // only save MediaProvider's classLoader
-        classLoader = lpparam.classLoader
-        onCreate(context)
         try {
+            // Only save MediaProvider's classLoader after the target class is resolved.
+            classLoader = lpparam.classLoader
+            onCreate(context)
+
             if (L.isDebug) {
                 L.dumpHeader("START METHOD DUMP")
                 
@@ -99,27 +109,68 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
                 L.dumpFooter()
             }
 
-            XposedBridge.hookAllMethods(
-                mediaProvider, "queryInternal", QueryHooker(this@XposedInit)
-            )
-            L.d("Hooked queryInternal")
-            XposedBridge.hookAllMethods(
-                mediaProvider, "insertFile", InsertHooker(this@XposedInit)
-            )
-            L.d("Hooked insertFile")
-            XposedBridge.hookAllMethods(
-                mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)
-            )
-            L.d("Hooked deleteInternal")
+            hookCompatibleMethods(mediaProvider, "queryInternal", QueryHooker(this@XposedInit)) {
+                val params = it.parameterTypes
+                params.size >= 4 &&
+                    params[0] == android.net.Uri::class.java &&
+                    params[1].isArray &&
+                    params[2] == Bundle::class.java &&
+                    params[3] == CancellationSignal::class.java
+            }
+            hookCompatibleMethods(mediaProvider, "insertFile", InsertHooker(this@XposedInit)) {
+                val params = it.parameterTypes
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
+                        params.size >= 6 &&
+                            params[2] == Int::class.javaPrimitiveType &&
+                            params[3] == android.net.Uri::class.java &&
+                            params[5] == android.content.ContentValues::class.java
+
+                    else -> params.size >= 4 &&
+                        params[1] == Int::class.javaPrimitiveType &&
+                        params[2] == android.net.Uri::class.java &&
+                        params[3] == android.content.ContentValues::class.java
+                }
+            }
+            hookCompatibleMethods(mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)) {
+                val params = it.parameterTypes
+                params.isNotEmpty() &&
+                    params[0] == android.net.Uri::class.java &&
+                    (Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+                        (params.size >= 2 && params[1] == Bundle::class.java))
+            }
         } catch (t: Throwable) {
-            L.e("Error hooking MediaProvider", t)
+            L.e("MediaProvider hook initialization failed; provider will run unmodified", t)
         }
+    }
+
+    private fun hookCompatibleMethods(
+        targetClass: Class<*>,
+        methodName: String,
+        callback: XC_MethodHook,
+        predicate: (java.lang.reflect.Method) -> Boolean,
+    ) {
+        val methods = targetClass.declaredMethods.filter {
+            it.name == methodName && predicate(it)
+        }
+        if (methods.isEmpty()) {
+            L.w("No compatible $methodName signature found; skipping hook")
+            return
+        }
+        methods.forEach { method -> XposedBridge.hookMethod(method, callback) }
+        L.d("Hooked ${methods.size} compatible $methodName method(s)")
     }
 
     @Throws(Throwable::class)
     private fun onDownloadManagerLoaded(lpparam: LoadPackageParam, context: Context) {
-        XposedHelpers.findAndHookMethod(File::class.java, "mkdir", FileHooker())
-        XposedHelpers.findAndHookMethod(File::class.java, "mkdirs", FileHooker())
+        if (!downloadProviderInitialized.compareAndSet(false, true)) return
+        try {
+            val hooker = FileHooker()
+            XposedHelpers.findAndHookMethod(File::class.java, "mkdir", hooker)
+            XposedHelpers.findAndHookMethod(File::class.java, "mkdirs", hooker)
+        } catch (t: Throwable) {
+            L.e("DownloadProvider hook initialization failed; provider will run unmodified", t)
+        }
     }
 
     @Throws(Throwable::class)
@@ -131,22 +182,29 @@ class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteIn
         if (lpparam.appInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0) {
             return
         }
-        XposedHelpers.findAndHookMethod(
-            ContentProvider::class.java, "attachInfo",
-            Context::class.java, ProviderInfo::class.java, Boolean::class.java,
-            object : XC_MethodHook() {
-                @Throws(Throwable::class)
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    val context = param.args[0] as Context
-                    val providerInfo = param.args[1] as ProviderInfo
+        try {
+            XposedHelpers.findAndHookMethod(
+                ContentProvider::class.java, "attachInfo",
+                Context::class.java, ProviderInfo::class.java, Boolean::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        try {
+                            val context = param.args[0] as? Context ?: return
+                            val providerInfo = param.args[1] as? ProviderInfo ?: return
 
-                    when (providerInfo.authority) {
-                        MediaStore.AUTHORITY -> onMediaProviderLoaded(lpparam, context)
-                        Downloads_Impl_AUTHORITY -> onDownloadManagerLoaded(lpparam, context)
+                            when (providerInfo.authority) {
+                                MediaStore.AUTHORITY -> onMediaProviderLoaded(lpparam, context)
+                                Downloads_Impl_AUTHORITY -> onDownloadManagerLoaded(lpparam, context)
+                            }
+                        } catch (t: Throwable) {
+                            L.e("Provider attach hook failed; allowing provider initialization", t)
+                        }
                     }
                 }
-            }
-        )
+            )
+        } catch (t: Throwable) {
+            L.e("Unable to hook ContentProvider.attachInfo for ${lpparam.packageName}", t)
+        }
     }
 
     @Throws(Throwable::class)

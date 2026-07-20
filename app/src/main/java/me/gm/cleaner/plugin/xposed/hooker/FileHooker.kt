@@ -29,12 +29,16 @@ class FileHooker : XC_MethodHook() {
 
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
-        val file = param.thisObject as File
-        if (FileUtils.contains(FileUtils.externalStorageDirPath, file) &&
-            standardParents.none { FileUtils.contains(it, file) }
-        ) {
-            L.d("rejected ${param.method.name}: $file")
-            param.result = false
+        try {
+            val file = param.thisObject as? File ?: return
+            if (FileUtils.contains(FileUtils.externalStorageDirPath, file) &&
+                standardParents.none { FileUtils.contains(it, file) }
+            ) {
+                L.d("rejected ${param.method.name}: $file")
+                param.result = false
+            }
+        } catch (t: Throwable) {
+            L.e("FileHooker", "Directory hook failed; allowing original operation", t)
         }
     }
 }

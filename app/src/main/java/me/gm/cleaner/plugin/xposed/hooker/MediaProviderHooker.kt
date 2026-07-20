@@ -23,93 +23,107 @@ import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.util.L
 import java.lang.reflect.Method
 import java.util.Optional
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.ConcurrentHashMap
 
 interface MediaProviderHooker {
     companion object {
-        private val isQueryBuilderResolved = AtomicReference<Boolean>(false)
-
-        @Volatile
-        var queryBuilderMethodInstance: Method? = null
-            private set
+        private val queryBuilderMethods = ConcurrentHashMap<Class<*>, List<Method>>()
     }
 
     fun dlog(message: String) = L.dlog(message)
 
-    private fun resolveQueryBuilderMethod(thisObject: Any) {
-        if (isQueryBuilderResolved.get()) return
-        synchronized(MediaProviderHooker::class.java) {
-            if (isQueryBuilderResolved.get()) return
-            val clazz = thisObject.javaClass
-            val methods = clazz.declaredMethods.filter { it.name == "getQueryBuilder" }
+    private fun resolveQueryBuilderMethods(thisObject: Any): List<Method> =
+        queryBuilderMethods.getOrPut(thisObject.javaClass) {
+            thisObject.javaClass.declaredMethods.filter { method ->
+                if (method.name != "getQueryBuilder") return@filter false
+                val params = method.parameterTypes
+                when (params.size) {
+                    5, 6 -> params[0] == Int::class.javaPrimitiveType &&
+                        params[1] == Int::class.javaPrimitiveType &&
+                        params[2] == Uri::class.java &&
+                        params[3] == Bundle::class.java
 
-            val method = methods.find { m ->
-                val params = m.parameterTypes
-                params.size == 6 && params[2] == Uri::class.java && params[3] == Bundle::class.java
-            } ?: methods.find { m ->
-                val params = m.parameterTypes
-                params.size == 5 && params[2] == Uri::class.java && params[3] == Bundle::class.java
-            } ?: methods.find { m ->
-                val params = m.parameterTypes
-                params.size == 4 && (params[1] == Uri::class.java || params[2] == Uri::class.java)
-            }
+                    4 -> params[0] == Int::class.javaPrimitiveType &&
+                        (params[1] == Uri::class.java || params[2] == Uri::class.java)
 
-            method?.isAccessible = true
-            queryBuilderMethodInstance = method
-            dlog(if (method != null) "Resolved getQueryBuilder: $method" else "Failed to resolve getQueryBuilder")
-            isQueryBuilderResolved.set(true)
+                    else -> false
+                }
+            }.onEach { it.isAccessible = true }
         }
+
+    private fun invokeQueryBuilder(
+        thisObject: Any,
+        type: Int,
+        table: Int,
+        uri: Uri,
+        query: Bundle,
+        honoredArgs: java.util.function.Consumer<String>?,
+    ): Any? {
+        val methods = resolveQueryBuilderMethods(thisObject)
+        for (method in methods) {
+            try {
+                val params = method.parameterTypes
+                return when (params.size) {
+                    6 -> method.invoke(
+                        thisObject,
+                        type,
+                        table,
+                        uri,
+                        query,
+                        honoredArgs,
+                        defaultArgument(params[5]),
+                    )
+
+                    5 -> method.invoke(thisObject, type, table, uri, query, honoredArgs)
+                    4 -> if (params[1] == Uri::class.java) {
+                        method.invoke(thisObject, type, uri, table, query)
+                    } else {
+                        method.invoke(thisObject, type, table, uri, query)
+                    }
+
+                    else -> null
+                }
+            } catch (_: IllegalArgumentException) {
+                // Try another compatible overload.
+            } catch (t: Throwable) {
+                val cause = if (t is java.lang.reflect.InvocationTargetException) {
+                    t.targetException
+                } else {
+                    t
+                }
+                dlog("Error invoking getQueryBuilder: $cause")
+                return null
+            }
+        }
+        dlog("Failed to resolve a working getQueryBuilder overload")
+        return null
+    }
+
+    private fun defaultArgument(type: Class<*>): Any? = when {
+        type == Optional::class.java -> Optional.empty<Any>()
+        !type.isPrimitive -> null
+        type == Boolean::class.javaPrimitiveType -> false
+        type == Char::class.javaPrimitiveType -> '\u0000'
+        type == Byte::class.javaPrimitiveType -> 0.toByte()
+        type == Short::class.javaPrimitiveType -> 0.toShort()
+        type == Int::class.javaPrimitiveType -> 0
+        type == Long::class.javaPrimitiveType -> 0L
+        type == Float::class.javaPrimitiveType -> 0F
+        type == Double::class.javaPrimitiveType -> 0.0
+        else -> null
     }
 
     fun callGetQueryBuilder(
         thisObject: Any, type: Int, table: Int, uri: Uri, query: Bundle,
         honoredArgs: java.util.function.Consumer<String>
     ): Any? {
-        resolveQueryBuilderMethod(thisObject)
-        val m = queryBuilderMethodInstance ?: return null
-        
-        return try {
-            val params = m.parameterTypes
-            when (params.size) {
-                6 -> {
-                    val lastParam = if (params[5].name == "java.util.Optional") Optional.empty<Any>() else null
-                    m.invoke(thisObject, type, table, uri, query, honoredArgs, lastParam)
-                }
-                5 -> m.invoke(thisObject, type, table, uri, query, honoredArgs)
-                4 -> if (params[1] == Uri::class.java) m.invoke(thisObject, type, uri, table, query)
-                     else m.invoke(thisObject, type, table, uri, query)
-                else -> null
-            }
-        } catch (t: Throwable) {
-            val cause = if (t is java.lang.reflect.InvocationTargetException) t.targetException else t
-            dlog("Error invoking getQueryBuilder: $cause")
-            null
-        }
+        return invokeQueryBuilder(thisObject, type, table, uri, query, honoredArgs)
     }
 
     fun callGetQueryBuilderDelete(
         thisObject: Any, type: Int, match: Int, uri: Uri, extras: Bundle
     ): Any? {
-        resolveQueryBuilderMethod(thisObject)
-        val m = queryBuilderMethodInstance ?: return null
-        
-        return try {
-            val params = m.parameterTypes
-            when (params.size) {
-                6 -> {
-                    val lastParam = if (params[5].name == "java.util.Optional") Optional.empty<Any>() else null
-                    m.invoke(thisObject, type, match, uri, extras, null, lastParam)
-                }
-                5 -> m.invoke(thisObject, type, match, uri, extras, null)
-                4 -> if (params[1] == Uri::class.java) m.invoke(thisObject, type, uri, match, null)
-                     else m.invoke(thisObject, type, match, uri, null)
-                else -> null
-            }
-        } catch (t: Throwable) {
-            val cause = if (t is java.lang.reflect.InvocationTargetException) t.targetException else t
-            dlog("Error invoking getQueryBuilder (Delete): $cause")
-            null
-        }
+        return invokeQueryBuilder(thisObject, type, match, uri, extras, null)
     }
 
     fun XC_MethodHook.MethodHookParam.ensureMediaProvider() {
