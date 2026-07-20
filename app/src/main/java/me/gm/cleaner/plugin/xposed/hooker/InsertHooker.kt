@@ -20,7 +20,6 @@ import android.content.ClipDescription
 import android.content.ContentValues
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.os.Environment
 import android.os.FileUtils
 import android.provider.MediaStore
@@ -30,14 +29,22 @@ import de.robv.android.xposed.XposedHelpers
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
+import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.io.File
-import java.util.*
 
 class InsertHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
+        try {
+            handleInsert(param)
+        } catch (t: Throwable) {
+            L.e("InsertHooker", "Insert hook failed; allowing original insert", t)
+        }
+    }
+
+    private fun handleInsert(param: MethodHookParam) {
         if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
@@ -61,13 +68,6 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             null
         } as? Uri ?: return
 
-        val extras = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[4] else Bundle.EMPTY
-        } catch (t: Throwable) {
-            dlog("Error getting extras arg: $t")
-            Bundle.EMPTY
-        } as Bundle
-
         val values = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[5] else param.args[3]
         } catch (t: Throwable) {
@@ -75,43 +75,37 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
             null
         } as? ContentValues ?: return
 
-        val mediaType = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[6] else param.args[4]
-        } catch (t: Throwable) {
-            dlog("Error getting mediaType arg: $t")
-            return
-        } as Int
+        val callingPackage = param.callingPackage
+        if (callingPackage.isEmpty()) return
 
         // Android 16 compatibility: Skip if this is an Android/data directory operation
         // to avoid interfering with app private storage directory creation
-        val relativePath = values.getAsString(MediaStore.MediaColumns.RELATIVE_PATH)
+        val inspectionValues = ContentValues(values)
+        val relativePath = inspectionValues.getAsString(MediaStore.MediaColumns.RELATIVE_PATH)
         if (isAndroidDataOperation(relativePath)) {
             dlog("Skipping Android/data directory operation: $relativePath")
             return
         }
 
         /** PARSE */
-        var mimeType = values.getAsString(MediaStore.MediaColumns.MIME_TYPE)
-        val wasPathEmpty = wasPathEmpty(values)
+        var mimeType = inspectionValues.getAsString(MediaStore.MediaColumns.MIME_TYPE)
+        val wasPathEmpty = wasPathEmpty(inspectionValues)
         if (wasPathEmpty) {
-            // Generate path when undefined
-            ensureUniqueFileColumns(param.thisObject, match, uri, values, mimeType)
+            // Derive the path from a copy; never mutate the caller's ContentValues.
+            ensureUniqueFileColumns(param.thisObject, match, uri, inspectionValues, mimeType)
         }
-        val data = values.getAsString(MediaStore.MediaColumns.DATA)
+        val data = inspectionValues.getAsString(MediaStore.MediaColumns.DATA)
         if (mimeType.isNullOrEmpty()) {
-            mimeType = values.getAsString(MediaStore.MediaColumns.MIME_TYPE)
-            // Restore to support apps not targeting sdk R or higher
-            values.remove(MediaStore.MediaColumns.MIME_TYPE)
-        }
-        if (wasPathEmpty) {
-            // Restore to allow mkdir
-            values.remove(MediaStore.MediaColumns.DATA)
+            mimeType = inspectionValues.getAsString(MediaStore.MediaColumns.MIME_TYPE)
         }
 
         /** INTERCEPT */
-        val filteredTemplates = service.ruleSp.templates.getFilteredTemplates(javaClass, param.callingPackage)
-        val shouldIntercept = service.ruleSp.templates
-            .applyTemplates(filteredTemplates, listOf(data), listOf(mimeType)).first()
+        val filteredTemplates = service.ruleSp.templates.getFilteredTemplates(javaClass, callingPackage)
+        val shouldIntercept = service.ruleSp.templates.shouldIntercept(
+            filteredTemplates,
+            data,
+            mimeType,
+        )
         if (shouldIntercept) {
             param.result = null
         }
@@ -125,11 +119,11 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
                 MediaProviderRecord(
                     0,
                     System.currentTimeMillis(),
-                    param.callingPackage,
+                    callingPackage,
                     match,
                     OP_INSERT,
-                    listOf(data),
-                    listOf(mimeType),
+                    listOf(data.orEmpty()),
+                    listOf(mimeType.orEmpty()),
                     listOf(shouldIntercept)
                 )
             )
@@ -137,8 +131,8 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
     }
 
     private fun wasPathEmpty(values: ContentValues) =
-        !values.containsKey(MediaStore.MediaColumns.DATA)
-                || values.getAsString(MediaStore.MediaColumns.DATA).isEmpty()
+        !values.containsKey(MediaStore.MediaColumns.DATA) ||
+            values.getAsString(MediaStore.MediaColumns.DATA).isNullOrEmpty()
 
     /**
      * Check if the operation targets Android/data or Android/obb directories.

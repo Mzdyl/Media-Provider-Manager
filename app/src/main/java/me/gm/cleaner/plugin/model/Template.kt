@@ -114,11 +114,20 @@ class Templates(json: String?) {
         templates: List<Template>, dataList: List<String>, mimeTypeList: List<String>
     ): List<Boolean> =
         dataList.zip(mimeTypeList).map { (data, mimeType) ->
-            templates.any { template ->
-                val permittedTypes = template.permittedMediaTypes
-                (permittedTypes != null && permittedTypes.isNotEmpty() &&
-                        MimeUtils.resolveMediaType(mimeType) !in permittedTypes) ||
-                        template.filterPath?.any { FileUtils.contains(it, data) } == true
-            }
+            shouldIntercept(templates, data, mimeType)
         }
+
+    fun shouldIntercept(
+        templates: List<Template>,
+        data: String?,
+        mimeType: String?,
+    ): Boolean = templates.any { template ->
+        val permittedTypes = template.permittedMediaTypes
+        val mediaTypeRejected = mimeType != null &&
+            !permittedTypes.isNullOrEmpty() &&
+            MimeUtils.resolveMediaType(mimeType) !in permittedTypes
+        val pathRejected = data != null &&
+            template.filterPath?.any { FileUtils.contains(it, data) } == true
+        mediaTypeRejected || pathRejected
+    }
 }
