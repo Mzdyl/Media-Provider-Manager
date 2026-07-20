@@ -26,7 +26,12 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 
-@Entity
+@Entity(
+    indices = [
+        Index(value = ["time_millis", "operation"]),
+        Index(value = ["package_name", "operation"]),
+    ],
+)
 data class MediaProviderRecord(
     @PrimaryKey(autoGenerate = true) val id: Int,
     @ColumnInfo(name = "time_millis") val timeMillis: Long,
@@ -96,6 +101,9 @@ interface MediaProviderRecordDao {
 
     @Delete
     fun delete(record: MediaProviderRecord)
+
+    @Query("DELETE FROM MediaProviderRecord WHERE time_millis < :cutoff")
+    fun deleteOlderThan(cutoff: Long): Int
 }
 
 @IntDef(value = [OP_QUERY, OP_INSERT, OP_DELETE])
@@ -108,7 +116,7 @@ annotation class MediaProviderOperation {
     }
 }
 
-@Database(entities = [MediaProviderRecord::class], version = 2, exportSchema = false)
+@Database(entities = [MediaProviderRecord::class], version = 3, exportSchema = false)
 @TypeConverters(ListConverter::class)
 abstract class MediaProviderRecordDatabase : RoomDatabase() {
     abstract fun mediaProviderRecordDao(): MediaProviderRecordDao
@@ -120,5 +128,18 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("DELETE FROM `MediaProviderInsertRecord`")
         db.execSQL("DELETE FROM `MediaProviderDeleteRecord`")
         db.execSQL("CREATE TABLE IF NOT EXISTS `MediaProviderRecord` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_millis` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `match` INTEGER NOT NULL, `operation` INTEGER NOT NULL, `data` TEXT NOT NULL, `mime_type` TEXT NOT NULL, `intercepted` TEXT NOT NULL)")
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_MediaProviderRecord_time_millis_operation` " +
+                "ON `MediaProviderRecord` (`time_millis`, `operation`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_MediaProviderRecord_package_name_operation` " +
+                "ON `MediaProviderRecord` (`package_name`, `operation`)",
+        )
     }
 }

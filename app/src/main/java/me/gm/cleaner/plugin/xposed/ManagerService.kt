@@ -27,14 +27,19 @@ import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MIGRATION_1_2
+import me.gm.cleaner.plugin.dao.MIGRATION_2_3
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDao
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase
 import me.gm.cleaner.plugin.model.ParceledListSlice
 import me.gm.cleaner.plugin.model.SpIdentifiers
+import me.gm.cleaner.plugin.util.L
 import java.io.File
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.ArrayDeque
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 abstract class ManagerService : IManagerService.Stub() {
     lateinit var classLoader: ClassLoader
@@ -53,7 +58,9 @@ abstract class ManagerService : IManagerService.Stub() {
     private var appUid: Int = -1
 
     // Async database write mechanism
-    private val recordQueue = ConcurrentLinkedQueue<MediaProviderRecord>()
+    private val recordQueue = ArrayDeque<MediaProviderRecord>()
+    private val recordQueueLock = Any()
+    private val droppedRecordCount = AtomicLong(0)
     private var writeHandler: Handler? = null
     private var handlerThread: HandlerThread? = null
     private val hasPendingWrite = AtomicBoolean(false)
@@ -74,7 +81,7 @@ abstract class ManagerService : IManagerService.Stub() {
                 MediaProviderRecordDatabase::class.java,
                 MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME
             )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
         dao = database.mediaProviderRecordDao()
         
@@ -87,6 +94,7 @@ abstract class ManagerService : IManagerService.Stub() {
                 }
             }
         }
+        writeHandler?.post { pruneOldRecords() }
     }
     
     /**
@@ -104,6 +112,8 @@ abstract class ManagerService : IManagerService.Stub() {
         writeHandler = null
         handlerThread?.quitSafely()
         handlerThread = null
+
+        database.close()
         
         // Clear observers
         observers.kill()
@@ -114,16 +124,46 @@ abstract class ManagerService : IManagerService.Stub() {
      * Records are batched and written in background thread.
      */
     fun insertRecordAsync(record: MediaProviderRecord) {
-        recordQueue.offer(record)
-        scheduleFlush()
+        if (enqueueRecord(record)) scheduleFlush()
     }
     
     /**
      * Insert multiple records asynchronously.
      */
     fun insertRecordsAsync(records: List<MediaProviderRecord>) {
-        records.forEach { recordQueue.offer(it) }
-        scheduleFlush()
+        var enqueued = false
+        records.forEach { enqueued = enqueueRecord(it) || enqueued }
+        if (enqueued) scheduleFlush()
+    }
+
+    private fun enqueueRecord(record: MediaProviderRecord): Boolean {
+        if (writeHandler == null) return false
+        synchronized(recordQueueLock) {
+            if (recordQueue.size >= MAX_QUEUED_RECORDS) {
+                val dropped = droppedRecordCount.incrementAndGet()
+                if (dropped == 1L || dropped % DROPPED_RECORD_LOG_INTERVAL == 0L) {
+                    L.w(
+                        "ManagerService",
+                        "Dropped $dropped usage records because the writer queue is full",
+                    )
+                }
+                return false
+            }
+            recordQueue.offerLast(record)
+        }
+        return true
+    }
+
+    private fun drainRecordBatch(): List<MediaProviderRecord> = synchronized(recordQueueLock) {
+        buildList(minOf(recordQueue.size, MAX_BATCH_SIZE)) {
+            while (size < MAX_BATCH_SIZE) {
+                add(recordQueue.pollFirst() ?: break)
+            }
+        }
+    }
+
+    private fun hasQueuedRecords(): Boolean = synchronized(recordQueueLock) {
+        recordQueue.isNotEmpty()
     }
     
     private fun scheduleFlush() {
@@ -134,12 +174,9 @@ abstract class ManagerService : IManagerService.Stub() {
     
     private fun flushRecordQueue() {
         hasPendingWrite.set(false)
-        val batch = mutableListOf<MediaProviderRecord>()
-        while (batch.size < MAX_BATCH_SIZE) {
-            val record = recordQueue.poll() ?: break
-            batch.add(record)
-        }
+        val batch = drainRecordBatch()
         
+        var persisted = false
         if (batch.isNotEmpty()) {
             try {
                 if (batch.size == 1) {
@@ -147,20 +184,22 @@ abstract class ManagerService : IManagerService.Stub() {
                 } else {
                     dao.insertAll(batch)
                 }
+                persisted = true
             } catch (e: Exception) {
-                // Log and continue, don't crash the system process
+                L.e("Failed to persist usage record batch", e)
             }
         }
         
         // If there are more records, schedule another flush
-        if (recordQueue.isNotEmpty()) {
+        if (hasQueuedRecords()) {
             scheduleFlush()
         }
         
         // Dispatch media change after write
-        if (batch.isNotEmpty()) {
+        if (persisted) {
             dispatchMediaChange()
         }
+        maybePruneOldRecords()
     }
     
     /**
@@ -168,13 +207,8 @@ abstract class ManagerService : IManagerService.Stub() {
      * Used during shutdown to ensure no records are lost.
      */
     private fun flushRecordQueueSync() {
-        var totalFlushed = 0
-        while (recordQueue.isNotEmpty()) {
-            val batch = mutableListOf<MediaProviderRecord>()
-            while (batch.size < MAX_BATCH_SIZE) {
-                val record = recordQueue.poll() ?: break
-                batch.add(record)
-            }
+        while (hasQueuedRecords()) {
+            val batch = drainRecordBatch()
             
             if (batch.isNotEmpty()) {
                 try {
@@ -183,9 +217,8 @@ abstract class ManagerService : IManagerService.Stub() {
                     } else {
                         dao.insertAll(batch)
                     }
-                    totalFlushed += batch.size
                 } catch (e: Exception) {
-                    // Log and continue, don't crash the system process
+                    L.e("Failed to flush usage records", e)
                 }
             } else {
                 break
@@ -251,7 +284,22 @@ abstract class ManagerService : IManagerService.Stub() {
 
     override fun clearAllTables() {
         enforceCallerPermission()
-        database.clearAllTables()
+        val handler = writeHandler
+        if (handler == null || Looper.myLooper() == handler.looper) {
+            clearRecordsInternal()
+            return
+        }
+        val latch = CountDownLatch(1)
+        handler.post {
+            try {
+                clearRecordsInternal()
+            } finally {
+                latch.countDown()
+            }
+        }
+        if (!latch.await(CLEAR_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw IllegalStateException("Timed out clearing usage records")
+        }
     }
 
     override fun packageUsageTimes(operation: Int, packageNames: List<String>): Int {
@@ -295,6 +343,31 @@ abstract class ManagerService : IManagerService.Stub() {
         // Otherwise, dispatch immediately
         dispatchMediaChangeInternal()
     }
+
+    private fun clearRecordsInternal() {
+        writeHandler?.removeMessages(MSG_WRITE_RECORDS)
+        synchronized(recordQueueLock) { recordQueue.clear() }
+        hasPendingWrite.set(false)
+        database.clearAllTables()
+        dispatchMediaChange()
+    }
+
+    private var lastPruneTime = 0L
+
+    private fun maybePruneOldRecords() {
+        val now = System.currentTimeMillis()
+        if (now - lastPruneTime >= PRUNE_INTERVAL_MS) pruneOldRecords(now)
+    }
+
+    private fun pruneOldRecords(now: Long = System.currentTimeMillis()) {
+        try {
+            val deleted = dao.deleteOlderThan(now - RECORD_RETENTION_MS)
+            lastPruneTime = now
+            if (deleted > 0) dispatchMediaChange()
+        } catch (e: Exception) {
+            L.e("Failed to prune old usage records", e)
+        }
+    }
     
     private fun dispatchMediaChangeInternal() {
         val now = SystemClock.uptimeMillis()
@@ -321,6 +394,11 @@ abstract class ManagerService : IManagerService.Stub() {
         private const val MSG_WRITE_RECORDS = 1
         private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
         private const val MAX_BATCH_SIZE = 50
+        private const val MAX_QUEUED_RECORDS = 500
+        private const val DROPPED_RECORD_LOG_INTERVAL = 100L
         private const val DEBOUNCE_INTERVAL_MS = 500L // Debounce interval for media change notifications
+        private const val CLEAR_TIMEOUT_SECONDS = 5L
+        private const val PRUNE_INTERVAL_MS = 6L * 60L * 60L * 1000L
+        private const val RECORD_RETENTION_MS = 90L * 24L * 60L * 60L * 1000L
     }
 }

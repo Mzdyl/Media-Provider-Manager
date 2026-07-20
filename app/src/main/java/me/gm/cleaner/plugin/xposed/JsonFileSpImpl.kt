@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *     required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -16,93 +16,75 @@
 
 package me.gm.cleaner.plugin.xposed
 
-import android.text.TextUtils
+import android.util.AtomicFile
 import me.gm.cleaner.plugin.dao.JsonSharedPreferencesImpl
 import me.gm.cleaner.plugin.dao.SharedPreferencesWrapper
 import me.gm.cleaner.plugin.util.L
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
+import java.io.FileNotFoundException
 import java.io.IOException
-import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 
 open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
     val file: File = src
+    private val atomicFile = AtomicFile(file)
+
+    @Volatile
     protected var contentCache: String? = null
 
     init {
-        val json = try {
-            val str = read()
-            if (str.isNullOrEmpty()) JSONObject() else JSONObject(str)
-        } catch (e: JSONException) {
-            JSONObject()
-        }
-        delegate = JsonSharedPreferencesImpl(json)
+        delegate = parseDelegate(read())
     }
 
-    private fun ensureFile() {
-        if (!file.exists()) {
-            try {
-                file.createNewFile()
-            } catch (e: IOException) {
-                L.e("Failed to create file: ${file.path}", e)
-                throw RuntimeException(e)
-            }
+    protected open fun validateContent(what: String) {
+        JSONObject(what)
+    }
+
+    private fun parseDelegate(content: String?): JsonSharedPreferencesImpl {
+        if (content?.trimStart()?.startsWith("[") == true) {
+            return JsonSharedPreferencesImpl()
+        }
+        return try {
+            JsonSharedPreferencesImpl(
+                if (content.isNullOrEmpty()) JSONObject() else JSONObject(content),
+            )
+        } catch (e: JSONException) {
+            L.e("Invalid preferences JSON in ${file.path}; using defaults", e)
+            JsonSharedPreferencesImpl()
         }
     }
 
     @Synchronized
     fun read(): String? {
-        if (contentCache == null) {
-            ensureFile()
-            try {
-                FileInputStream(file).use {
-                    val bb = ByteBuffer.allocate(it.available())
-                    it.channel.read(bb)
-                    contentCache = String(bb.array())
-                }
-            } catch (e: IOException) {
-                L.e("Failed to read file: ${file.path}", e)
-            }
+        contentCache?.let { return it }
+        contentCache = try {
+            atomicFile.openRead().bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+        } catch (_: FileNotFoundException) {
+            ""
+        } catch (e: IOException) {
+            L.e("Failed to read ${file.path}", e)
+            ""
         }
         return contentCache
     }
 
     @Synchronized
     open fun write(what: String) {
+        validateContent(what)
+
+        var output = atomicFile.startWrite()
+        try {
+            output.write(what.toByteArray(StandardCharsets.UTF_8))
+            atomicFile.finishWrite(output)
+            output = null
+        } catch (t: Throwable) {
+            output?.let { atomicFile.failWrite(it) }
+            throw IOException("Failed to atomically write ${file.path}", t)
+        }
+
         contentCache = what
-        try {
-            delegate = JsonSharedPreferencesImpl(JSONObject(what))
-        } catch (_: JSONException) {}
-
-        ensureFile()
-        val tempFile = File(file.path + ".bak")
-        try {
-            FileOutputStream(tempFile).use { fos ->
-                fos.write(what.toByteArray(StandardCharsets.UTF_8))
-                fos.fd.sync() // 强制同步到硬件磁盘
-            }
-        } catch (e: IOException) {
-            L.e("Failed to write rules atomically: $e")
-            // 备份方案：如果原子写入失败，尝试直接写入（虽然不安全，但在极端文件权限下可能是唯一出路）
-            try {
-                FileOutputStream(file).use { fos ->
-                    fos.write(what.toByteArray(StandardCharsets.UTF_8))
-                }
-            } catch (ex: IOException) {
-                L.e("Critical failure writing rules", ex)
-            }
-            return
-        }
-
-        // 原子替换
-        if (!tempFile.renameTo(file)) {
-            if (!file.delete() || !tempFile.renameTo(file)) {
-                L.e("Failed to rename temporary file to $file")
-            }
-        }
+        delegate = parseDelegate(what)
     }
 }

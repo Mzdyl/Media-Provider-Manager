@@ -54,9 +54,28 @@ class Templates(json: String?) {
 
     init {
         if (!json.isNullOrEmpty()) {
-            _values.addAll(
-                Template.GSON.fromJson(json, Array<Template>::class.java)
-            )
+            val parsed = Template.GSON.fromJson(json, Array<Template>::class.java)
+                ?: throw IllegalArgumentException("Template document must be a JSON array")
+            parsed.forEach { template ->
+                require(template.templateName.isNotBlank()) { "Template name must not be blank" }
+                require(template.hookOperation.isNotEmpty()) { "Template operation must not be empty" }
+                require(template.hookOperation.all { it == "query" || it == "insert" }) {
+                    "Unsupported template operation"
+                }
+                require(template.applyToApp?.none { it.isBlank() } != false) {
+                    "Application package name must not be blank"
+                }
+                require(template.permittedMediaTypes?.all { it in 0..6 } != false) {
+                    "Unsupported media type"
+                }
+                require(template.filterPath?.none { it.isBlank() } != false) {
+                    "Filter path must not be blank"
+                }
+            }
+            require(parsed.map { it.templateName }.distinct().size == parsed.size) {
+                "Template names must be unique"
+            }
+            _values.addAll(parsed)
         }
     }
     
