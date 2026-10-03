@@ -31,6 +31,9 @@ jobs:
       - name: Test, lint and build Debug APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
 
+      - name: Verify modern Xposed packaging
+        run: python3 tools/verify_xposed_apk.py app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -41,7 +44,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/Re'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/Re'
 
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +74,27 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
+
+      - name: Build signed device tests
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SIGNING_KEY_STORE: release-key.jks
+          SIGNING_KEY_STORE_PASSWORD: ${{ secrets.SIGNING_KEY_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew assembleReleaseAndroidTest -PinstrumentedBuildType=release
+
+      - name: Verify modern Xposed packaging after R8
+        run: python3 tools/verify_xposed_apk.py app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload device tests
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: MPM-Device-Tests
+          path: app/build/outputs/apk/androidTest/release/*.apk
+          retention-days: 7
+          archive: false
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v7

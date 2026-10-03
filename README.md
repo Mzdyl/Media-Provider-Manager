@@ -2,7 +2,7 @@
 
 An Xposed module intended to prevent media storage abuse.
 
-This fork focuses on media access rules and usage records, based on [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager). See the [1.0.0 changelog](CHANGELOG.md) for changes from upstream and upgrade notes.
+This fork focuses on media access rules and usage records, based on [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager). See the [changelog](CHANGELOG.md) for changes from upstream and upgrade notes.
 
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/+rx5V9umZI4FjMWNl)
 [![Stars](https://img.shields.io/github/stars/Mzdyl/Media-Provider-Manager?label=Stars)](https://github.com/Mzdyl/Media-Provider-Manager)
@@ -55,19 +55,20 @@ If Google Photos or another app still shows filtered content, check template ass
 ## Compatibility
 
 - Android 10 (API 29) is the minimum supported version; Android 10–16 is the primary compatibility range.
-- A recent LSPosed version is recommended. Only enable the module for the suggested MediaProvider, DownloadProvider, and module-app scopes.
+- The development branch requires a framework implementing modern Xposed API 102. Enable the suggested MediaProvider and DownloadProvider scopes; the module app connects through the framework service and does not need a self-scope. The published 1.0.x line uses the legacy API.
+- After upgrading, restart the scoped processes or reboot. The app checks the injected API and module version; connecting to the framework alone does not mean the current hooks are running. Hot reloading is disabled.
 - MediaProvider is a private system component and vendor implementations vary. Unknown method signatures and internal API failures are handled fail-open, with the reason written to the Xposed log.
 
 ## Build and verification
 
-JDK 21 and Android SDK 36 are required:
+Use JDK 21, Android SDK 37 (37.0), and Build Tools 36.0.0. The wrapper uses Gradle 9.5.1 with AGP 9.1.1. The target SDK remains 36 and the minimum Android version remains 10:
 
 ```shell
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ./gradlew assembleRelease
 ```
 
-CI runs unit tests, Android Lint, and the Debug APK build. Core rule matching, path boundaries, and database type conversions should be covered by unit tests before merging.
+CI runs unit tests, Android Lint, and the Debug APK build. Both Debug and Release APKs are checked with `tools/verify_xposed_apk.py` for modern entry metadata, retained constructors, absence of legacy API references, and compile-only API isolation. Core rule matching, path boundaries, and database type conversions should be covered by unit tests before merging.
 
 ## Data and privacy
 

@@ -17,28 +17,30 @@
 package me.gm.cleaner.plugin.xposed.hooker
 
 import android.os.Environment
-import de.robv.android.xposed.XC_MethodHook
+import io.github.libxposed.api.XposedInterface.Chain
+import io.github.libxposed.api.XposedInterface.Hooker
 import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.util.FileUtils
 import java.io.File
 
-class FileHooker : XC_MethodHook() {
+class FileHooker : Hooker {
     private val standardParents: List<File> =
         FileUtils.standardDirs.map { type -> Environment.getExternalStoragePublicDirectory(type) } +
                 FileUtils.androidDir
 
-    @Throws(Throwable::class)
-    override fun beforeHookedMethod(param: MethodHookParam) {
-        try {
-            val file = param.thisObject as? File ?: return
-            if (FileUtils.contains(FileUtils.externalStorageDirPath, file) &&
+    override fun intercept(chain: Chain): Any? {
+        val blocked = try {
+            val file = chain.thisObject as? File
+            file != null && FileUtils.contains(FileUtils.externalStorageDirPath, file) &&
                 standardParents.none { FileUtils.contains(it, file) }
-            ) {
-                L.d("rejected ${param.method.name}: $file")
-                param.result = false
-            }
         } catch (t: Throwable) {
             L.e("FileHooker", "Directory hook failed; allowing original operation", t)
+            false
         }
+        if (blocked) {
+            L.d("rejected ${chain.executable.name}: ${chain.thisObject}")
+            return false
+        }
+        return chain.proceed()
     }
 }

@@ -34,6 +34,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.model.Templates
 import me.gm.cleaner.plugin.IManagerService
+import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
 import me.gm.cleaner.plugin.model.SpIdentifiers.TEMPLATE_PREFERENCES
@@ -158,7 +159,9 @@ class BinderViewModel @Inject constructor(
         _remoteSpCacheLiveData.postValue(copy)
     }
 
-    fun pingBinder(): Boolean = serviceCall("getModuleVersion") { moduleVersion > 0 } == true
+    fun pingBinder(): Boolean = serviceCall("checkModuleApi") {
+        xposedApiVersion == BuildConfig.XPOSED_API_VERSION && moduleVersion > 0
+    } == true
 
     val moduleVersion: Int
         get() = serviceCall("getModuleVersion") { moduleVersion } ?: 0

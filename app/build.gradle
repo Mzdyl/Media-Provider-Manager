@@ -9,15 +9,16 @@ plugins {
 def gitCommitCount = Integer.parseInt('git rev-list --count HEAD'.execute([], project.rootDir).text.trim())
 
 android {
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId 'me.gm.cleaner.plugin'
         minSdk 29
         targetSdk = 36
         versionCode gitCommitCount
-        versionName '1.0.0'
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        versionName '1.1.0-dev'
+        buildConfigField 'int', 'XPOSED_API_VERSION', '102'
+        testInstrumentationRunner 'me.gm.cleaner.plugin.Api102Instrumentation'
         multiDexEnabled false
         resourceConfigurations += ['en', 'zh-rCN', 'zh-rTW']
     }
@@ -55,6 +56,7 @@ android {
         buildConfig true
         compose true
     }
+    testBuildType = providers.gradleProperty('instrumentedBuildType').getOrElse('debug')
     lint {
         checkDependencies true
     }
@@ -62,7 +64,9 @@ android {
 }
 
 dependencies {
-    compileOnly 'de.robv.android.xposed:api:82'
+    compileOnly 'io.github.libxposed:api:102.0.0'
+    implementation 'io.github.libxposed:service:102.0.0'
+    testImplementation 'io.github.libxposed:api:102.0.0'
     implementation 'androidx.core:core-ktx:1.13.1'
     def lifecycleVersion = '2.7.0'
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion"

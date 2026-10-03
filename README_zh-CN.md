@@ -2,7 +2,7 @@
 
 防止媒体存储滥用的 Xposed 模块。
 
-本分支基于 [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager)，专注媒体访问规则与使用记录。相对上游的变化和升级说明见 [1.0.0 更新日志](CHANGELOG.md)。
+本分支基于 [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager)，专注媒体访问规则与使用记录。相对上游的变化和升级说明见 [更新日志](CHANGELOG.md)。
 
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/+rx5V9umZI4FjMWNl)
 [![Stars](https://img.shields.io/github/stars/Mzdyl/Media-Provider-Manager?label=Stars)](https://github.com/Mzdyl/Media-Provider-Manager)
@@ -55,19 +55,20 @@
 ## 兼容性
 
 - 最低支持 Android 10（API 29），当前以 Android 10–16 为主要兼容范围。
-- 推荐使用较新的 LSPosed，并仅勾选模块建议的媒体存储、下载管理器和模块自身作用域。
+- 开发分支需要实现现代 Xposed API 102 的框架。勾选建议的媒体存储、下载管理器作用域；模块应用通过框架服务连接，无需勾选模块自身。已发布的 1.0.x 版本使用旧 API。
+- 升级后请重启作用域进程或设备。管理端会核对注入端的 API 与模块版本；仅连接框架不代表当前 Hook 已生效。本版不启用热重载。
 - MediaProvider 是系统组件，不同 ROM 的私有实现可能不同。模块在无法识别方法签名或内部 API 时会优先放行系统原操作，并在 Xposed 日志中记录原因。
 
 ## 构建与验证
 
-需要 JDK 21 和 Android SDK 36：
+使用 JDK 21、Android SDK 37（37.0）和 Build Tools 36.0.0；Wrapper 使用 Gradle 9.5.1，AGP 为 9.1.1。目标 SDK 仍为 36，最低支持 Android 10：
 
 ```shell
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ./gradlew assembleRelease
 ```
 
-CI 会执行单元测试、Android Lint 和 Debug APK 构建。核心规则、路径边界和数据库类型转换均应通过单元测试后再合并。
+CI 会执行单元测试、Android Lint 和 Debug APK 构建。Debug 与 Release APK 均通过 `tools/verify_xposed_apk.py` 检查现代模块入口、构造方法保留、旧 API 引用清除和框架 API 的打包隔离。核心规则、路径边界和数据库类型转换均应通过单元测试后再合并。
 
 ## 数据与隐私
 

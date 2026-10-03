@@ -32,6 +32,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:description="@string/description"
         android:largeHeap="true"
         android:multiArch="true"
         android:supportsRtl="true"
@@ -69,17 +70,5 @@
             </intent-filter>
         </activity-alias>
 
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="@string/description" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="53" />
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/recommend_package" />
     </application>
 </manifest>

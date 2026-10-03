@@ -24,8 +24,9 @@ import android.os.Environment
 import android.os.FileUtils
 import android.provider.MediaStore
 import android.text.TextUtils
-import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedHelpers
+import io.github.libxposed.api.XposedInterface.Chain
+import io.github.libxposed.api.XposedInterface.Hooker
+import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
@@ -34,19 +35,20 @@ import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.io.File
 
-class InsertHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
-    @Throws(Throwable::class)
-    override fun beforeHookedMethod(param: MethodHookParam) {
-        try {
-            handleInsert(param)
+class InsertHooker(private val service: ManagerService) : Hooker, MediaProviderHooker {
+    override fun intercept(chain: Chain): Any? {
+        val blocked = try {
+            handleInsert(chain)
         } catch (t: Throwable) {
             L.e("InsertHooker", "Insert hook failed; allowing original insert", t)
+            false
         }
+        return if (blocked) null else chain.proceed()
     }
 
-    private fun handleInsert(param: MethodHookParam) {
+    private fun handleInsert(param: Chain): Boolean {
         if (param.isFuseThread || param.isSystemCallingPackage) {
-            return
+            return false
         }
         /** ARGUMENTS */
         dlog("insertFile called. Args size: ${param.args.size}")
@@ -59,24 +61,24 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         } catch (t: Throwable) {
             dlog("Error getting match arg: $t")
             null
-        } as? Int ?: return
+        } as? Int ?: return false
 
         val uri = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[3] else param.args[2]
         } catch (t: Throwable) {
             dlog("Error getting uri arg: $t")
             null
-        } as? Uri ?: return
+        } as? Uri ?: return false
 
         val values = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) param.args[5] else param.args[3]
         } catch (t: Throwable) {
             dlog("Error getting values arg: $t")
             null
-        } as? ContentValues ?: return
+        } as? ContentValues ?: return false
 
         val callingPackage = param.callingPackage
-        if (callingPackage.isEmpty()) return
+        if (callingPackage.isEmpty()) return false
 
         // Android 16 compatibility: Skip if this is an Android/data directory operation
         // to avoid interfering with app private storage directory creation
@@ -84,7 +86,7 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         val relativePath = inspectionValues.getAsString(MediaStore.MediaColumns.RELATIVE_PATH)
         if (isAndroidDataOperation(relativePath)) {
             dlog("Skipping Android/data directory operation: $relativePath")
-            return
+            return false
         }
 
         /** PARSE */
@@ -92,7 +94,7 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         val wasPathEmpty = wasPathEmpty(inspectionValues)
         if (wasPathEmpty) {
             // Derive the path from a copy; never mutate the caller's ContentValues.
-            ensureUniqueFileColumns(param.thisObject, match, uri, inspectionValues, mimeType)
+            ensureUniqueFileColumns(param.provider, match, uri, inspectionValues, mimeType)
         }
         val data = inspectionValues.getAsString(MediaStore.MediaColumns.DATA)
         if (mimeType.isNullOrEmpty()) {
@@ -100,34 +102,37 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         }
 
         /** INTERCEPT */
-        val filteredTemplates = service.ruleSp.templates.getFilteredTemplates(javaClass, callingPackage)
+        val filteredTemplates = service.ruleSp.templates.getFilteredTemplates("insert", callingPackage)
         val shouldIntercept = service.ruleSp.templates.shouldIntercept(
             filteredTemplates,
             data,
             mimeType,
         )
-        if (shouldIntercept) {
-            param.result = null
-        }
 
-        /** RECORD - use async insert */
-        if (service.rootSp.getBoolean(
-                service.resources.getString(R.string.usage_record_key), true
-            )
-        ) {
-            service.insertRecordAsync(
-                MediaProviderRecord(
-                    0,
-                    System.currentTimeMillis(),
-                    callingPackage,
-                    match,
-                    OP_INSERT,
-                    listOf(data.orEmpty()),
-                    listOf(mimeType.orEmpty()),
-                    listOf(shouldIntercept)
+        // Recording failure must not undo a successfully evaluated insert restriction.
+        try {
+            /** RECORD - use async insert */
+            if (service.rootSp.getBoolean(
+                    service.resources.getString(R.string.usage_record_key), true
                 )
-            )
+            ) {
+                service.insertRecordAsync(
+                    MediaProviderRecord(
+                        0,
+                        System.currentTimeMillis(),
+                        callingPackage,
+                        match,
+                        OP_INSERT,
+                        listOf(data.orEmpty()),
+                        listOf(mimeType.orEmpty()),
+                        listOf(shouldIntercept)
+                    )
+                )
+            }
+        } catch (t: Throwable) {
+            L.e("InsertHooker", "Failed to record insert", t)
         }
+        return shouldIntercept
     }
 
     private fun wasPathEmpty(values: ContentValues) =
@@ -213,27 +218,27 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                val resolvedVolumeName = XposedHelpers.callMethod(
+                val resolvedVolumeName = Reflection.callMethod(
                     thisObject, "resolveVolumeName", uri
                 ) as String
-                val volumePath = XposedHelpers.callMethod(
+                val volumePath = Reflection.callMethod(
                     thisObject, "getVolumePath", resolvedVolumeName
                 ) as File
 
-                val fileUtilsClass = XposedHelpers.findClass(
+                val fileUtilsClass = Reflection.findClass(
                     "com.android.providers.media.util.FileUtils", service.classLoader
                 )
-                val isFuseThread = XposedHelpers.callMethod(thisObject, "isFuseThread")
+                val isFuseThread = Reflection.callMethod(thisObject, "isFuseThread")
                         as Boolean
-                XposedHelpers.callStaticMethod(
+                Reflection.callStaticMethod(
                     fileUtilsClass, "sanitizeValues", values, !isFuseThread
                 )
-                XposedHelpers.callStaticMethod(
+                Reflection.callStaticMethod(
                     fileUtilsClass, "computeDataFromValues", values, volumePath, isFuseThread
                 )
 
                 var res = File(values.getAsString(MediaStore.MediaColumns.DATA))
-                res = XposedHelpers.callStaticMethod(
+                res = Reflection.callStaticMethod(
                     fileUtilsClass, "buildUniqueFile", res.parentFile, mimeType, res.name
                 ) as File
 
@@ -245,26 +250,26 @@ class InsertHooker(private val service: ManagerService) : XC_MethodHook(), Media
                 return
             }
         } else {
-            val resolvedVolumeName = XposedHelpers.callMethod(
+            val resolvedVolumeName = Reflection.callMethod(
                 thisObject, "resolveVolumeName", uri
             ) as String
 
-            val relativePath = XposedHelpers.callMethod(
+            val relativePath = Reflection.callMethod(
                 thisObject, "sanitizePath",
                 values.getAsString(MediaStore.MediaColumns.RELATIVE_PATH)
             )
-            val displayName = XposedHelpers.callMethod(
+            val displayName = Reflection.callMethod(
                 thisObject, "sanitizeDisplayName",
                 values.getAsString(MediaStore.MediaColumns.DISPLAY_NAME)
             )
 
-            var res = XposedHelpers.callMethod(
+            var res = Reflection.callMethod(
                 thisObject, "getVolumePath", resolvedVolumeName
             ) as File
-            res = XposedHelpers.callStaticMethod(
+            res = Reflection.callStaticMethod(
                 Environment::class.java, "buildPath", res, relativePath
             ) as File
-            res = XposedHelpers.callStaticMethod(
+            res = Reflection.callStaticMethod(
                 FileUtils::class.java, "buildUniqueFile", res, mimeType, displayName
             ) as File
 

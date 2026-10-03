@@ -27,7 +27,7 @@ import me.gm.cleaner.plugin.util.ModuleActivationStore
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
-        ModuleActivationStore.resetAppProcessHooked(this)
+        ModuleActivationStore.initialize()
         RootPreferences.init(createDeviceProtectedStorageContext())
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         DynamicColors.applyToActivitiesIfAvailable(this)

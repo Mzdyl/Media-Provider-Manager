@@ -21,7 +21,7 @@ import android.content.pm.PackageInfo
 import android.content.res.Resources
 import android.os.*
 import androidx.room.Room
-import de.robv.android.xposed.XposedHelpers
+import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-abstract class ManagerService : IManagerService.Stub() {
+class ManagerService : IManagerService.Stub() {
     lateinit var classLoader: ClassLoader
         protected set
     lateinit var resources: Resources
@@ -72,7 +72,9 @@ abstract class ManagerService : IManagerService.Stub() {
         }
     }
 
-    protected fun onCreate(context: Context) {
+    fun initialize(context: Context, providerClassLoader: ClassLoader, moduleInfo: android.content.pm.ApplicationInfo) {
+        classLoader = providerClassLoader
+        resources = context.packageManager.getResourcesForApplication(moduleInfo)
         this.context = context
         appUid = context.packageManager.getPackageUid(BuildConfig.APPLICATION_ID, 0)
         database = Room
@@ -101,7 +103,7 @@ abstract class ManagerService : IManagerService.Stub() {
      * Clean up resources when service is being destroyed.
      * Should be called from Xposed hook when MediaProvider is shutting down.
      */
-    protected fun onDestroy() {
+    fun close() {
         // Flush remaining records before shutdown
         flushRecordQueueSync()
 
@@ -113,7 +115,7 @@ abstract class ManagerService : IManagerService.Stub() {
         handlerThread?.quitSafely()
         handlerThread = null
 
-        database.close()
+        if (::database.isInitialized) database.close()
         
         // Clear observers
         observers.kill()
@@ -227,12 +229,12 @@ abstract class ManagerService : IManagerService.Stub() {
     }
 
     private val packageManagerService: IInterface by lazy {
-        val binder = XposedHelpers.callStaticMethod(
-            XposedHelpers.findClass("android.os.ServiceManager", classLoader),
+        val binder = Reflection.callStaticMethod(
+            Reflection.findClass("android.os.ServiceManager", classLoader),
             "getService", "package"
         ) as IBinder
-        XposedHelpers.callStaticMethod(
-            XposedHelpers.findClass(
+        Reflection.callStaticMethod(
+            Reflection.findClass(
                 "android.content.pm.IPackageManager\$Stub", classLoader
             ), "asInterface", binder
         ) as IInterface
@@ -240,15 +242,17 @@ abstract class ManagerService : IManagerService.Stub() {
 
     override fun getModuleVersion() = BuildConfig.VERSION_CODE
 
+    override fun getXposedApiVersion() = BuildConfig.XPOSED_API_VERSION
+
     override fun getInstalledPackages(userId: Int, flags: Int): ParceledListSlice<PackageInfo> {
         enforceCallerPermission()
-        val parceledListSlice = XposedHelpers.callMethod(
+        val parceledListSlice = Reflection.callMethod(
             packageManagerService,
             "getInstalledPackages",
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) flags.toLong() else flags,
             userId
         )
-        val list = (XposedHelpers.callMethod(parceledListSlice, "getList") as? List<*>)
+        val list = (Reflection.callMethod(parceledListSlice, "getList") as? List<*>)
             ?.filterIsInstance<PackageInfo>()
             .orEmpty()
         return ParceledListSlice(list)
@@ -256,7 +260,7 @@ abstract class ManagerService : IManagerService.Stub() {
 
     override fun getPackageInfo(packageName: String, flags: Int, userId: Int): PackageInfo? {
         enforceCallerPermission()
-        return XposedHelpers.callMethod(
+        return Reflection.callMethod(
             packageManagerService,
             "getPackageInfo",
             packageName,

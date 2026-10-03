@@ -18,8 +18,6 @@ package me.gm.cleaner.plugin.model
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
-import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
 import me.gm.cleaner.plugin.xposed.util.FileUtils
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.util.concurrent.ConcurrentHashMap
@@ -88,12 +86,8 @@ class Templates(json: String?) {
         accessOrderQueue.clear()
     }
 
-    fun getFilteredTemplates(cls: Class<*>, packageName: String): List<Template> {
-        val operation = when (cls) {
-            QueryHooker::class.java -> "query"
-            InsertHooker::class.java -> "insert"
-            else -> throw IllegalArgumentException()
-        }
+    fun getFilteredTemplates(operation: String, packageName: String): List<Template> {
+        require(operation == "query" || operation == "insert") { "Unsupported operation: $operation" }
 
         val cacheKey = "$operation:$packageName"
         

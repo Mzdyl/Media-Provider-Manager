@@ -7,6 +7,8 @@ interface IManagerService {
 
     int getModuleVersion() = 0;
 
+    int getXposedApiVersion() = 1;
+
     ParceledListSlice<PackageInfo> getInstalledPackages(int userId, int flags) = 10;
 
     PackageInfo getPackageInfo(String packageName, int flags, int userId) = 11;
