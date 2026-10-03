@@ -31,6 +31,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.gm.cleaner.plugin.BuildConfig
+import me.gm.cleaner.plugin.model.ModuleActivationState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -86,12 +89,6 @@ val drawerItems = listOf(
     DrawerItem(AppRoute.Settings, R.string.settings, Icons.Default.Settings, section = R.string.module),
     DrawerItem(AppRoute.About, R.string.about, Icons.Default.Info),
 )
-
-private enum class ModuleActivationState {
-    NotActive,
-    ScopeRestartRequired,
-    Active,
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -193,11 +190,12 @@ private fun DrawerHeader(
     val configuration = LocalConfiguration.current
     val moduleActivatedMessage = stringResource(R.string.module_activated)
     var pollingJob by remember { mutableStateOf<Job?>(null) }
+    val frameworkConnected by ModuleActivationStore.frameworkConnected.collectAsStateWithLifecycle()
 
     suspend fun refreshActivationState() {
         isRefreshing = true
         val (frameworkActive, scopeActive, remoteVersion) = withContext(Dispatchers.IO) {
-            val frameworkActive = ModuleActivationStore.isAppProcessHooked(context)
+            val frameworkActive = ModuleActivationStore.frameworkConnected.value
             binderViewModel.refreshBinder()
             val scopeActive = binderViewModel.pingBinder()
             Triple(
@@ -206,11 +204,9 @@ private fun DrawerHeader(
                 if (scopeActive) binderViewModel.moduleVersion else 0,
             )
         }
-        activationState = when {
-            scopeActive -> ModuleActivationState.Active
-            frameworkActive -> ModuleActivationState.ScopeRestartRequired
-            else -> ModuleActivationState.NotActive
-        }
+        activationState = ModuleActivationState.resolve(
+            frameworkActive, scopeActive, remoteVersion, BuildConfig.VERSION_CODE,
+        )
         moduleVersion = remoteVersion
         isRefreshing = false
     }
@@ -225,7 +221,7 @@ private fun DrawerHeader(
                     binderViewModel.refreshBinder()
                     if (binderViewModel.pingBinder()) binderViewModel.moduleVersion else 0
                 }
-                if (remoteVersion > 0) {
+                if (remoteVersion == BuildConfig.VERSION_CODE) {
                     activationState = ModuleActivationState.Active
                     moduleVersion = remoteVersion
                     Toast.makeText(
@@ -241,7 +237,7 @@ private fun DrawerHeader(
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(binderViewModel) {
+    androidx.compose.runtime.LaunchedEffect(binderViewModel, frameworkConnected) {
         refreshActivationState()
         if (activationState == ModuleActivationState.ScopeRestartRequired) {
             startPolling()

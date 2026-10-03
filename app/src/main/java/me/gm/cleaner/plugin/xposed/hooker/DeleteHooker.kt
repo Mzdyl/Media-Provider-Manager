@@ -24,8 +24,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore.Files.FileColumns
-import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedHelpers
+import io.github.libxposed.api.XposedInterface.Chain
+import io.github.libxposed.api.XposedInterface.Hooker
+import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
@@ -34,17 +35,17 @@ import me.gm.cleaner.plugin.xposed.ManagerService
 import me.gm.cleaner.plugin.xposed.util.MimeUtils
 import java.io.File
 
-class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), MediaProviderHooker {
-    @Throws(Throwable::class)
-    override fun beforeHookedMethod(param: MethodHookParam) {
+class DeleteHooker(private val service: ManagerService) : Hooker, MediaProviderHooker {
+    override fun intercept(chain: Chain): Any? {
         try {
-            recordDelete(param)
+            recordDelete(chain)
         } catch (t: Throwable) {
             L.e("DeleteHooker", "Delete hook failed; allowing original delete", t)
         }
+        return chain.proceed()
     }
 
-    private fun recordDelete(param: MethodHookParam) {
+    private fun recordDelete(param: Chain) {
         if (param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
@@ -94,26 +95,23 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
             MediaTables.AUDIO_MEDIA_ID, MediaTables.VIDEO_MEDIA_ID, MediaTables.IMAGES_MEDIA_ID -> {
                 try {
                     when {
-                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
-                            param.thisObject, "enforceCallingPermission", uri, extras, true
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Reflection.callMethod(
+                            param.provider, "enforceCallingPermission", uri, extras, true
                         )
 
-                        Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                            param.thisObject, "enforceCallingPermission", uri, true
+                        Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> Reflection.callMethod(
+                            param.provider, "enforceCallingPermission", uri, true
                         )
                     }
-                } catch (e: XposedHelpers.InvocationTargetError) {
-                    if (e.cause is RecoverableSecurityException) {
-                        // Give callers interacting with a specific media item a chance to
-                        // escalate access if they don't already have it
-                        return
-                    }
+                } catch (_: RecoverableSecurityException) {
+                    // Let the original operation perform its permission escalation.
+                    return
                 }
 
-                val qb = callGetQueryBuilderDelete(param.thisObject, TYPE_DELETE, match, uri, extras)
+                val qb = callGetQueryBuilderDelete(param.provider, TYPE_DELETE, match, uri, extras)
                 if (qb == null) return
                 val helper = try {
-                    XposedHelpers.callMethod(param.thisObject, "getDatabaseForUri", uri)
+                    Reflection.callMethod(param.provider, "getDatabaseForUri", uri)
                 } catch (t: Throwable) {
                     dlog("Error calling getDatabaseForUri in DeleteHooker: $t")
                     null
@@ -128,13 +126,13 @@ class DeleteHooker(private val service: ManagerService) : XC_MethodHook(), Media
                 )
 
                 val c = when {
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> XposedHelpers.callMethod(
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Reflection.callMethod(
                         qb, "query", helper, projection, userWhere, userWhereArgs,
                         null, null, null, null, null
                     )
 
-                    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> XposedHelpers.callMethod(
-                        qb, "query", XposedHelpers.callMethod(helper, "getWritableDatabase"),
+                    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> Reflection.callMethod(
+                        qb, "query", Reflection.callMethod(helper, "getWritableDatabase"),
                         projection, userWhere, userWhereArgs, null, null, null, null, null
                     )
 

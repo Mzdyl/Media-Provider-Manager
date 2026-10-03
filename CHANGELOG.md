@@ -1,5 +1,16 @@
 # 更新日志 / Changelog
 
+## 1.1.0-dev — 未发布 / Unreleased
+
+- 迁移到现代 libxposed API 102.0.0，最低与目标 Xposed API 均为 102；需要支持 API 102 的框架。
+- 使用现代模块入口与静态作用域，移除旧 API 依赖、自身 Hook 和持久化激活标记。
+- 通过框架服务连接检测激活状态，核对媒体服务中的 API 与模块版本；升级后需重启作用域进程，不启用热重载。
+- 查询、插入、删除记录及下载目录 Hook 改用拦截链；保留原有规则、业务 Binder 和数据库，过滤失败时用原参数重试原方法，取消与原方法异常继续向调用方传递。
+- 编译 SDK 升至 37，AGP 升至 9.1.1，Gradle 升至 9.5.1；目标 SDK 36、最低 Android 10 保持不变。
+- 增加查询调用约定、反射兼容和激活状态测试，并验证 Debug / R8 Release 的实际 APK 内容。
+
+Modern libxposed API 102 migration for the development branch. Requires an API 102 framework; restart the scoped processes after updating. Rules, the module's Binder interface, and its database are retained. The app no longer hooks itself or persists an activation flag. Compile SDK 37, AGP 9.1.1, and Gradle 9.5.1 are required; target SDK remains 36 and minimum Android remains 10.
+
 ## 1.0.0 — 2026-10-03
 
 这是 **Mzdyl/Media-Provider-Manager 分支的首个正式版**。本次汇总相对上游的功能调整和稳定性修复，不仅包含上一版 `625` 之后的改动。

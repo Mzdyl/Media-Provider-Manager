@@ -1,221 +1,157 @@
 /*
  * Copyright 2021 Green Mushroom
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- *     required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Apache License, Version 2.0.
+ * See http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package me.gm.cleaner.plugin.xposed
 
-import android.app.Application
 import android.content.ContentProvider
 import android.content.Context
-import android.content.pm.ApplicationInfo
+import android.content.ContentValues
 import android.content.pm.ProviderInfo
-import android.content.res.AssetManager
-import android.content.res.Resources
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.provider.MediaStore
-import de.robv.android.xposed.*
-import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
-import me.gm.cleaner.plugin.BuildConfig
+import android.util.Log
+import io.github.libxposed.api.XposedInterface.ExceptionMode
+import io.github.libxposed.api.XposedInterface.HookHandle
+import io.github.libxposed.api.XposedInterface.Hooker
+import io.github.libxposed.api.XposedModule
+import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
+import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import me.gm.cleaner.plugin.util.L
-import me.gm.cleaner.plugin.util.ModuleActivationStore
 import me.gm.cleaner.plugin.xposed.hooker.DeleteHooker
 import me.gm.cleaner.plugin.xposed.hooker.FileHooker
 import me.gm.cleaner.plugin.xposed.hooker.InsertHooker
+import me.gm.cleaner.plugin.xposed.hooker.MediaTables
 import me.gm.cleaner.plugin.xposed.hooker.QueryHooker
+import me.gm.cleaner.plugin.xposed.util.Reflection
 import java.io.File
+import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 
-class XposedInit : ManagerService(), IXposedHookLoadPackage, IXposedHookZygoteInit {
-
+/** API 102 entry. The app process connects through libxposed-service, not a self-hook. */
+class XposedInit : XposedModule() {
+    private val attachHookInstalled = AtomicBoolean(false)
     private val mediaProviderInitialized = AtomicBoolean(false)
     private val downloadProviderInitialized = AtomicBoolean(false)
 
-    @Throws(Throwable::class)
-    private fun onModuleAppLoaded(lpparam: LoadPackageParam) {
-        XposedHelpers.findAndHookMethod(
-            Application::class.java,
-            "onCreate",
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val application = param.thisObject as? Application ?: return
-                    if (application.packageName != BuildConfig.APPLICATION_ID) {
-                        return
-                    }
-                    ModuleActivationStore.markAppProcessHooked(application)
-                    L.d("Marked module app process as hooked")
-                }
-            }
-        )
+    override fun onModuleLoaded(param: ModuleLoadedParam) {
+        L.frameworkLogger = { priority, message, throwable ->
+            log(priority, "MPM", message, throwable)
+        }
+        log(Log.INFO, "MPM", "API $apiVersion loaded in ${param.processName}")
     }
 
-    @Throws(Throwable::class)
-    private fun onMediaProviderLoaded(lpparam: LoadPackageParam, context: Context) {
-        if (!mediaProviderInitialized.compareAndSet(false, true)) return
-        L.d("MediaProvider loaded: ${lpparam.packageName}")
-        val mediaProvider = try {
-            XposedHelpers.findClass(
-                "com.android.providers.media.MediaProvider", lpparam.classLoader
-            )
-        } catch (e: XposedHelpers.ClassNotFoundError) {
-            L.e("MediaProvider class not found!", e)
-            mediaProviderInitialized.set(false)
-            return
-        }
+    override fun onPackageReady(param: PackageReadyParam) {
+        if (param.packageName !in MediaTables.SYSTEM_CALLING_PACKAGES &&
+            param.packageName != "com.android.providers.downloads"
+        ) return
+        if (!attachHookInstalled.compareAndSet(false, true)) return
         try {
-            // Only save MediaProvider's classLoader after the target class is resolved.
-            classLoader = lpparam.classLoader
-            onCreate(context)
-
-            if (L.isDebug) {
-                L.dumpHeader("START METHOD DUMP")
-                
-                L.d("--- MediaProvider Methods ---")
-                mediaProvider.declaredMethods.forEach { method ->
-                    if (method.name in setOf("getQueryBuilder", "getDatabaseForUri", "resolveVolumeName", "queryInternal")) {
-                        val params = method.parameterTypes.joinToString(", ") { it.name }
-                        L.v("METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
-                    }
-                }
-                
+            val method = ContentProvider::class.java.getDeclaredMethod(
+                "attachInfo", Context::class.java, ProviderInfo::class.java,
+            )
+            hook(method).setExceptionMode(ExceptionMode.PROTECTIVE).intercept { chain ->
                 try {
-                    val databaseUtilsClass = XposedHelpers.findClass(
-                        "com.android.providers.media.util.DatabaseUtils", lpparam.classLoader
-                    )
-                    L.d("--- DatabaseUtils Methods ---")
-                    databaseUtilsClass.declaredMethods.forEach { method ->
-                        if (method.name in setOf("resolveQueryArgs", "recoverAbusiveSortOrder", "recoverAbusiveLimit", "recoverAbusiveSelection")) {
-                            val params = method.parameterTypes.joinToString(", ") { it.name }
-                            L.v("METHOD_DUMP: ${method.name}($params) -> ${method.returnType.name}")
+                    val context = chain.args[0] as? Context
+                    val providerInfo = chain.args[1] as? ProviderInfo
+                    val provider = chain.thisObject as? ContentProvider
+                    if (context != null && providerInfo != null && provider != null) {
+                        val authorities = providerInfo.authority.orEmpty().split(';')
+                        when {
+                            MediaStore.AUTHORITY in authorities -> initializeMediaProvider(
+                                context, provider.javaClass.classLoader ?: param.classLoader,
+                            )
+                            "downloads" in authorities -> initializeDownloadProvider()
                         }
                     }
-                } catch (e: Throwable) {
-                    L.e("Could not find DatabaseUtils", e)
+                } catch (t: Throwable) {
+                    L.e("Provider attach hook failed; allowing provider initialization", t)
                 }
-
-                L.dumpFooter()
+                chain.proceed()
             }
+        } catch (t: Throwable) {
+            attachHookInstalled.set(false)
+            L.e("Unable to hook ContentProvider.attachInfo for ${param.packageName}", t)
+        }
+    }
 
-            hookCompatibleMethods(mediaProvider, "queryInternal", QueryHooker(this@XposedInit)) {
+    private fun initializeMediaProvider(context: Context, loader: ClassLoader) {
+        if (!mediaProviderInitialized.compareAndSet(false, true)) return
+        val handles = mutableListOf<HookHandle>()
+        var service: ManagerService? = null
+        try {
+            val providerClass = Reflection.findClass("com.android.providers.media.MediaProvider", loader)
+            val manager = ManagerService()
+            service = manager
+            manager.initialize(context, loader, moduleApplicationInfo)
+            // QueryCall explicitly propagates the original retry's exception. Protective mode
+            // would replace it with the exception from the earlier filtered chain.proceed().
+            hookCompatibleMethods(providerClass, "queryInternal", QueryHooker(manager, this), handles, ExceptionMode.PASSTHROUGH) {
                 val params = it.parameterTypes
-                params.size >= 4 &&
-                    params[0] == android.net.Uri::class.java &&
-                    params[1].isArray &&
-                    params[2] == Bundle::class.java &&
-                    params[3] == CancellationSignal::class.java
+                params.size >= 4 && params[0] == Uri::class.java && params[1].isArray &&
+                    params[2] == Bundle::class.java && params[3] == CancellationSignal::class.java
             }
-            hookCompatibleMethods(mediaProvider, "insertFile", InsertHooker(this@XposedInit)) {
+            hookCompatibleMethods(providerClass, "insertFile", InsertHooker(manager), handles) {
                 val params = it.parameterTypes
-                when {
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
-                        params.size >= 6 &&
-                            params[2] == Int::class.javaPrimitiveType &&
-                            params[3] == android.net.Uri::class.java &&
-                            params[5] == android.content.ContentValues::class.java
-
-                    else -> params.size >= 4 &&
-                        params[1] == Int::class.javaPrimitiveType &&
-                        params[2] == android.net.Uri::class.java &&
-                        params[3] == android.content.ContentValues::class.java
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    params.size >= 6 && params[2] == Int::class.javaPrimitiveType &&
+                        params[3] == Uri::class.java && params[5] == ContentValues::class.java
+                } else {
+                    params.size >= 4 && params[1] == Int::class.javaPrimitiveType &&
+                        params[2] == Uri::class.java && params[3] == ContentValues::class.java
                 }
             }
-            hookCompatibleMethods(mediaProvider, "deleteInternal", DeleteHooker(this@XposedInit)) {
+            hookCompatibleMethods(providerClass, "deleteInternal", DeleteHooker(manager), handles) {
                 val params = it.parameterTypes
-                params.isNotEmpty() &&
-                    params[0] == android.net.Uri::class.java &&
+                params.isNotEmpty() && params[0] == Uri::class.java &&
                     (Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
                         (params.size >= 2 && params[1] == Bundle::class.java))
             }
+            L.i("MediaProvider hooks ready in ${context.packageName}")
         } catch (t: Throwable) {
+            handles.forEach { runCatching { it.unhook() } }
+            service?.let { runCatching { it.close() } }
+            mediaProviderInitialized.set(false)
             L.e("MediaProvider hook initialization failed; provider will run unmodified", t)
         }
     }
 
     private fun hookCompatibleMethods(
-        targetClass: Class<*>,
-        methodName: String,
-        callback: XC_MethodHook,
-        predicate: (java.lang.reflect.Method) -> Boolean,
+        target: Class<*>,
+        name: String,
+        hooker: Hooker,
+        handles: MutableList<HookHandle>,
+        exceptionMode: ExceptionMode = ExceptionMode.PROTECTIVE,
+        matches: (Method) -> Boolean,
     ) {
-        val methods = targetClass.declaredMethods.filter {
-            it.name == methodName && predicate(it)
-        }
+        val methods = target.declaredMethods.filter { it.name == name && matches(it) }
         if (methods.isEmpty()) {
-            L.w("No compatible $methodName signature found; skipping hook")
-            return
+            L.e("No compatible $name signature found; skipping hook")
         }
-        methods.forEach { method -> XposedBridge.hookMethod(method, callback) }
-        L.d("Hooked ${methods.size} compatible $methodName method(s)")
+        methods.forEach {
+            handles += hook(it).setExceptionMode(exceptionMode).intercept(hooker)
+        }
+        log(Log.INFO, "MPM", "Hooked ${methods.size} compatible $name methods")
     }
 
-    @Throws(Throwable::class)
-    private fun onDownloadManagerLoaded(lpparam: LoadPackageParam, context: Context) {
+    private fun initializeDownloadProvider() {
         if (!downloadProviderInitialized.compareAndSet(false, true)) return
+        val handles = mutableListOf<HookHandle>()
         try {
             val hooker = FileHooker()
-            XposedHelpers.findAndHookMethod(File::class.java, "mkdir", hooker)
-            XposedHelpers.findAndHookMethod(File::class.java, "mkdirs", hooker)
+            for (name in listOf("mkdir", "mkdirs")) {
+                handles += hook(File::class.java.getDeclaredMethod(name))
+                    .setExceptionMode(ExceptionMode.PROTECTIVE).intercept(hooker)
+            }
+            log(Log.INFO, "MPM", "DownloadProvider mkdir and mkdirs hooks ready")
         } catch (t: Throwable) {
+            handles.forEach { runCatching { it.unhook() } }
+            downloadProviderInitialized.set(false)
             L.e("DownloadProvider hook initialization failed; provider will run unmodified", t)
         }
-    }
-
-    @Throws(Throwable::class)
-    override fun handleLoadPackage(lpparam: LoadPackageParam) {
-        if (lpparam.packageName == BuildConfig.APPLICATION_ID) {
-            onModuleAppLoaded(lpparam)
-            return
-        }
-        if (lpparam.appInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0) {
-            return
-        }
-        try {
-            XposedHelpers.findAndHookMethod(
-                ContentProvider::class.java, "attachInfo",
-                Context::class.java, ProviderInfo::class.java, Boolean::class.java,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        try {
-                            val context = param.args[0] as? Context ?: return
-                            val providerInfo = param.args[1] as? ProviderInfo ?: return
-
-                            when (providerInfo.authority) {
-                                MediaStore.AUTHORITY -> onMediaProviderLoaded(lpparam, context)
-                                Downloads_Impl_AUTHORITY -> onDownloadManagerLoaded(lpparam, context)
-                            }
-                        } catch (t: Throwable) {
-                            L.e("Provider attach hook failed; allowing provider initialization", t)
-                        }
-                    }
-                }
-            )
-        } catch (t: Throwable) {
-            L.e("Unable to hook ContentProvider.attachInfo for ${lpparam.packageName}", t)
-        }
-    }
-
-    @Throws(Throwable::class)
-    @Suppress("DEPRECATION")
-    override fun initZygote(startupParam: IXposedHookZygoteInit.StartupParam) {
-        val assetManager = AssetManager::class.java.newInstance()
-        XposedHelpers.callMethod(assetManager, "addAssetPath", startupParam.modulePath)
-        resources = Resources(assetManager, null, null)
-    }
-
-    companion object {
-        const val Downloads_Impl_AUTHORITY = "downloads"
     }
 }

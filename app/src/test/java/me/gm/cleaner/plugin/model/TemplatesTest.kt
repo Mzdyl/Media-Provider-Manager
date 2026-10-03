@@ -1,11 +1,24 @@
 package me.gm.cleaner.plugin.model
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TemplatesTest {
+    @Test
+    fun selectsTemplatesWithoutLoadingHookClassesInTheStandaloneApp() {
+        val templates = Templates("""[
+            {"template_name":"photos","hook_operation":["query"],"apply_to_app":["test.photos"]},
+            {"template_name":"downloads","hook_operation":["insert"],"apply_to_app":["test.downloads"]}
+        ]""")
+        assertEquals(listOf("photos"), templates.getFilteredTemplates("query", "test.photos").map { it.templateName })
+        assertEquals(listOf("downloads"), templates.getFilteredTemplates("insert", "test.downloads").map { it.templateName })
+        assertTrue(templates.getFilteredTemplates("insert", "test.photos").isEmpty())
+        assertTrue(templates.getFilteredTemplates("query", "test.downloads").isEmpty())
+    }
+
 
     @Test
     fun parsesAndAppliesPathRules() {

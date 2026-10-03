@@ -18,8 +18,8 @@ package me.gm.cleaner.plugin.xposed.hooker
 
 import android.net.Uri
 import android.os.Bundle
-import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedHelpers
+import io.github.libxposed.api.XposedInterface.Chain
+import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.util.L
 import java.lang.reflect.Method
 import java.util.Optional
@@ -126,21 +126,24 @@ interface MediaProviderHooker {
         return invokeQueryBuilder(thisObject, type, match, uri, extras, null)
     }
 
-    fun XC_MethodHook.MethodHookParam.ensureMediaProvider() {
-        require(method.declaringClass.name == "com.android.providers.media.MediaProvider")
+    val Chain.provider: Any
+        get() = requireNotNull(thisObject) { "MediaProvider instance is missing" }
+
+    fun Chain.ensureMediaProvider() {
+        require(executable.declaringClass.name == "com.android.providers.media.MediaProvider")
     }
 
-    val XC_MethodHook.MethodHookParam.isFuseThread: Boolean
+    val Chain.isFuseThread: Boolean
         get() = try {
-            val fuseDaemonCls = XposedHelpers.findClass(
-                "com.android.providers.media.fuse.FuseDaemon", thisObject.javaClass.classLoader
+            val fuseDaemonCls = Reflection.findClass(
+                "com.android.providers.media.fuse.FuseDaemon", provider.javaClass.classLoader
             )
-            XposedHelpers.callStaticMethod(fuseDaemonCls, "native_is_fuse_thread") as Boolean
-        } catch (e: XposedHelpers.ClassNotFoundError) {
+            Reflection.callStaticMethod(fuseDaemonCls, "native_is_fuse_thread") as Boolean
+        } catch (e: ClassNotFoundException) {
             // Android 16+ may have changed FUSE architecture
             // Try to detect via alternative method on MediaProvider itself
             try {
-                XposedHelpers.callMethod(thisObject, "isFuseThread") as Boolean
+                Reflection.callMethod(provider, "isFuseThread") as Boolean
             } catch (e2: Throwable) {
                 // If we cannot determine, default to false to avoid blocking legitimate queries
                 // (e.g., the binder query from the client app used to detect module activation)
@@ -152,31 +155,31 @@ interface MediaProviderHooker {
             false  // Default to false to avoid blocking legitimate queries
         }
 
-    val XC_MethodHook.MethodHookParam.isSystemCallingPackage: Boolean
+    val Chain.isSystemCallingPackage: Boolean
         get() {
             val pkg = callingPackage
             return pkg in MediaTables.SYSTEM_CALLING_PACKAGES
         }
 
-    val XC_MethodHook.MethodHookParam.callingPackage: String
+    val Chain.callingPackage: String
         get() {
             ensureMediaProvider()
             return try {
                 val threadLocal =
-                    XposedHelpers.getObjectField(thisObject, "mCallingIdentity") as ThreadLocal<*>
+                    Reflection.getObjectField(provider, "mCallingIdentity") as ThreadLocal<*>
                 val identity = threadLocal.get()
                 if (identity == null) {
                     L.e("QueryHooker", "mCallingIdentity ThreadLocal.get() returned null")
                     ""
                 } else {
-                    val pkg = XposedHelpers.callMethod(identity, "getPackageName") as String
+                    val pkg = Reflection.callMethod(identity, "getPackageName") as String
                     dlog("callingPackage resolved: $pkg")
                     pkg
                 }
-            } catch (e: NoSuchFieldError) {
+            } catch (e: NoSuchFieldException) {
                 L.e("QueryHooker", "mCallingIdentity field not found on this Android version", e)
                 ""
-            } catch (e: XposedHelpers.ClassNotFoundError) {
+            } catch (e: ClassNotFoundException) {
                 L.e("QueryHooker", "mCallingIdentity class not found", e)
                 ""
             } catch (e: Throwable) {
@@ -185,14 +188,14 @@ interface MediaProviderHooker {
             }
         }
 
-    val XC_MethodHook.MethodHookParam.isCallingPackageAllowedHidden: Boolean
+    val Chain.isCallingPackageAllowedHidden: Boolean
         get() {
             ensureMediaProvider()
-            return XposedHelpers.callMethod(thisObject, "isCallingPackageAllowedHidden") as Boolean
+            return Reflection.callMethod(provider, "isCallingPackageAllowedHidden") as Boolean
         }
 
-    fun XC_MethodHook.MethodHookParam.matchUri(uri: Uri, allowHidden: Boolean): Int {
+    fun Chain.matchUri(uri: Uri, allowHidden: Boolean): Int {
         ensureMediaProvider()
-        return XposedHelpers.callMethod(thisObject, "matchUri", uri, allowHidden) as Int
+        return Reflection.callMethod(provider, "matchUri", uri, allowHidden) as Int
     }
 }
