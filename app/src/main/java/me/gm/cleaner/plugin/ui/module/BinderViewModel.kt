@@ -31,6 +31,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import me.gm.cleaner.plugin.model.Template
+import me.gm.cleaner.plugin.model.Templates
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
 import me.gm.cleaner.plugin.model.SpIdentifiers.ROOT_PREFERENCES
@@ -191,6 +193,22 @@ class BinderViewModel @Inject constructor(
         }
     }
     
+    /** Serialize read/modify/write and report remote failures to the editor. */
+    fun updateTemplates(transform: (List<Template>) -> List<Template>) {
+        synchronized(spOperationLock) {
+            val remoteService = service ?: error("Module service is unavailable")
+            try {
+                val current = Templates(remoteService.readSp(TEMPLATE_PREFERENCES)).values
+                val json = Template.GSON.toJson(transform(current))
+                remoteService.writeSp(TEMPLATE_PREFERENCES, json)
+                updateRemoteSpCache(TEMPLATE_PREFERENCES, json)
+            } catch (exception: Exception) {
+                handleRemoteFailure("updateTemplates", exception)
+                throw exception
+            }
+        }
+    }
+
     fun readRootSp(): String? = readSp(ROOT_PREFERENCES)
     fun readTemplateSp(): String? = readSp(TEMPLATE_PREFERENCES)
     fun writeRootSp(what: String) = writeSp(ROOT_PREFERENCES, what)

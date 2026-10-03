@@ -32,6 +32,14 @@ As with native storage, Android does not offer a fine-grained management scheme 
 - Material 3.
 - Open source.
 
+## Configuring rules and troubleshooting
+
+Select an app in App management, then assign an existing template or create one. Tap **Save** to apply edits; navigating back prompts before discarding an unsaved draft. Templates can be shared, so changing a path affects every assigned app.
+
+Filter paths must match actual directory names. The editor reveals invisible spaces and format characters as `[U+XXXX]`; use the folder picker or manual path editor to check them. Valid filename characters are never removed automatically. Selecting no media types or all types leaves types unrestricted; directory filters still apply.
+
+If Google Photos or another app still shows filtered content, check template assignments and invisible path characters, then distinguish new local media queries from existing app caches and cloud copies. The module filters MediaStore queries; it does not erase cached or cloud media or isolate filesystem access.
+
 ## Source code
 
 [https://github.com/Mzdyl/Media-Provider-Manager](https://github.com/Mzdyl/Media-Provider-Manager)

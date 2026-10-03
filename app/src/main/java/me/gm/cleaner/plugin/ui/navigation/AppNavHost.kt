@@ -85,6 +85,7 @@ fun AppNavHost(
                 onEditTemplate = { template ->
                     navController.navigate(
                         AppRoute.CreateTemplate(
+                            originalTemplateName = template.templateName,
                             templateName = template.templateName,
                             hookOperation = template.hookOperation,
                             packageNames = template.applyToApp,
@@ -137,6 +138,7 @@ fun AppNavHost(
                 onEditTemplate = { template ->
                     navController.navigate(
                         AppRoute.CreateTemplate(
+                            originalTemplateName = template.templateName,
                             templateName = template.templateName,
                             hookOperation = template.hookOperation,
                             packageNames = template.applyToApp,
@@ -150,6 +152,7 @@ fun AppNavHost(
         composable<AppRoute.CreateTemplate> { backStackEntry ->
             val route = backStackEntry.toRoute<AppRoute.CreateTemplate>()
             CreateTemplateScreen(
+                originalTemplateName = route.originalTemplateName,
                 templateName = route.templateName,
                 hookOperation = route.hookOperation,
                 packageNames = route.packageNames,

@@ -164,4 +164,18 @@
     <string name="empty_search_hint">Try another keyword or refresh the list.</string>
     <string name="delete_template_title">Delete template</string>
     <string name="delete_template_message">Delete template "%1$s"?</string>
+    <string name="saving">Saving…</string>
+    <string name="template_save_failed">Save failed. Check the module connection and try again; your draft is kept.</string>
+    <string name="template_missing">This template was deleted. Return to the template list and create it again.</string>
+    <string name="unsaved_changes">Unsaved changes</string>
+    <string name="discard">Discard</string>
+    <string name="enter_path">Enter path manually</string>
+    <string name="edit_path">Edit path</string>
+    <string name="absolute_path">Absolute directory path</string>
+    <string name="path_exact_hint">The path must match the folder name exactly, including spaces. Selecting a folder is recommended.</string>
+    <string name="path_invisible_warning">Check invisible characters: %1$s</string>
+    <string name="path_picker_failed">Cannot resolve this folder. Choose local storage or enter an absolute path.</string>
+    <string name="media_types_hint">Select types to allow. Selecting none or all leaves types unrestricted; folder rules still apply.</string>
+    <string name="filter_paths_hint">Hide these folders and their contents from media queries. Existing app caches and cloud copies may remain visible.</string>
+    <string name="template_scope_hint">Applies to %1$d apps. Save to apply changes; manage app assignments from App management.</string>
 </resources>

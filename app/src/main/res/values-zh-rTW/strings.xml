@@ -112,4 +112,18 @@
     <string name="hide_system_apps">隱藏系統應用</string>
     <string name="module_activated">模組已啟動，請重啟對應作用域以生效。</string>
     <string name="restart_scope_hint">已在框架中啟動模組，請重啟作用域應用（如：媒體儲存設備）以生效。</string>
+    <string name="saving">儲存中…</string>
+    <string name="template_save_failed">儲存失敗，請檢查模組連線後重試；草稿已保留。</string>
+    <string name="template_missing">此範本已被刪除，請返回範本清單重新建立。</string>
+    <string name="unsaved_changes">尚未儲存</string>
+    <string name="discard">捨棄變更</string>
+    <string name="enter_path">手動輸入路徑</string>
+    <string name="edit_path">編輯路徑</string>
+    <string name="absolute_path">目錄的絕對路徑</string>
+    <string name="path_exact_hint">路徑須與實際目錄完全一致，包括空格。建議使用目錄選擇器。</string>
+    <string name="path_invisible_warning">請核對隱藏字元：%1$s</string>
+    <string name="path_picker_failed">無法解析此目錄，請選擇本機儲存目錄或手動輸入絕對路徑。</string>
+    <string name="media_types_hint">勾選允許存取的類型。不選或全選表示不限制類型；路徑過濾仍生效。</string>
+    <string name="filter_paths_hint">從媒體查詢中隱藏這些目錄及子目錄。應用程式既有快取和雲端副本可能仍然顯示。</string>
+    <string name="template_scope_hint">套用至 %1$d 個應用程式。點選儲存後生效；在應用程式管理中新增或移除應用程式。</string>
 </resources>

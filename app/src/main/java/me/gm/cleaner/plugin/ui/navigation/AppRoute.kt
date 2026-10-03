@@ -23,6 +23,7 @@ sealed interface AppRoute {
 
     @Serializable
     data class CreateTemplate(
+        val originalTemplateName: String? = null,
         val templateName: String? = null,
         val hookOperation: List<String>? = null,
         val packageNames: List<String>? = null,

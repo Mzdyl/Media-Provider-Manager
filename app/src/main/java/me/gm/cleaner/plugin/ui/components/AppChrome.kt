@@ -1,5 +1,9 @@
 package me.gm.cleaner.plugin.ui.components
 
+import android.os.SystemClock
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.foundation.Image
@@ -15,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
@@ -29,10 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -73,8 +73,7 @@ fun SecondaryTopBar(
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    // Debounce to prevent multiple rapid clicks causing navigation issues
-    var isNavigating by remember { mutableStateOf(false) }
+    var lastBackClick by remember { mutableLongStateOf(0L) }
 
     TopAppBar(
         title = { Text(title) },
@@ -82,11 +81,12 @@ fun SecondaryTopBar(
         navigationIcon = {
             IconButton(
                 onClick = {
-                    if (!isNavigating) {
-                        isNavigating = true
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastBackClick >= 300L) {
+                        lastBackClick = now
                         onNavigateBack()
                     }
-                }
+                },
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,

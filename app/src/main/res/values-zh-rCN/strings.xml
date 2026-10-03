@@ -132,4 +132,18 @@
     <string name="empty_search_hint">请尝试其他关键字，或刷新列表。</string>
     <string name="delete_template_title">删除模板</string>
     <string name="delete_template_message">确定删除模板“%1$s”吗？</string>
+    <string name="saving">保存中…</string>
+    <string name="template_save_failed">保存失败，请检查模块连接后重试；草稿已保留。</string>
+    <string name="template_missing">此模板已被删除，请返回模板列表重新创建。</string>
+    <string name="unsaved_changes">尚未保存</string>
+    <string name="discard">放弃更改</string>
+    <string name="enter_path">手动输入路径</string>
+    <string name="edit_path">编辑路径</string>
+    <string name="absolute_path">目录的绝对路径</string>
+    <string name="path_exact_hint">路径须与真实目录完全一致，包括空格。建议使用目录选择器。</string>
+    <string name="path_invisible_warning">请核对隐藏字符：%1$s</string>
+    <string name="path_picker_failed">无法解析该目录，请选择本地存储目录或手动输入绝对路径。</string>
+    <string name="media_types_hint">勾选允许访问的类型。不选或全选表示不限制类型；路径过滤仍生效。</string>
+    <string name="filter_paths_hint">从媒体查询中隐藏这些目录及子目录。应用已有缓存和云端副本可能仍然显示。</string>
+    <string name="template_scope_hint">应用于 %1$d 个应用。点击保存后生效；在应用管理中添加或移除应用。</string>
 </resources>
