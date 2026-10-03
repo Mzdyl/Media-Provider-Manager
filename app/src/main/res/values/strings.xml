@@ -26,9 +26,9 @@
     <string name="active_pending_scope_restart">ACTIVATED, RESTART SCOPE</string>
     <string name="loading">Loading…</string>
     <string name="enabled_rule_count">%d rule(s) enabled</string>
-    <string name="query_times">Queried %d times</string>
-    <string name="insert_times">Inserted %d times</string>
-    <string name="delete_times">Deleted %d times</string>
+    <string name="query_times">%d recorded queries in retained history</string>
+    <string name="insert_times">%d recorded insert attempts in retained history</string>
+    <string name="delete_times">%d recorded delete attempts in retained history</string>
     <string name="delimiter">,\ </string>
     <string name="app_info">App info</string>
     <string name="queried_at">Queried at\ </string>
@@ -81,7 +81,7 @@
     <string name="reject_nonstandard_dir_summary">System apps in AOSP never create non-standard directories, but some manufacturers changed this behavior.</string>
     <string name="usage_record_key" translatable="false">usage_record</string>
     <string name="usage_record_title" translatable="false">@string/usage_record</string>
-    <string name="usage_record_summary">Save usage records to the database. No new data will appear in the usage record page if you turned off.</string>
+    <string name="usage_record_summary">Keeps at most 7 days and 5,000 groups. Query counts are grouped within one minute with one bounded detail sample (up to 8 KiB). Turning this off discards pending records; filtering and background cleanup continue.</string>
     <string name="scoped_header">SCOPED</string>
     <string name="template_management_key" translatable="false">template_management</string>
     <string name="template_management_title">Template management</string>
@@ -178,4 +178,20 @@
     <string name="media_types_hint">Select types to allow. Selecting none or all leaves types unrestricted; folder rules still apply.</string>
     <string name="filter_paths_hint">Hide these folders and their contents from media queries. Existing app caches and cloud copies may remain visible.</string>
     <string name="template_scope_hint">Applies to %1$d apps. Save to apply changes; manage app assignments from App management.</string>
+    <string name="record_policy_summary">Keeps up to 7 days, 5,000 groups and a 64 MiB log database after legacy cleanup. This list shows the latest 500 groups. Diagnostic samples are not a complete audit.</string>
+    <string name="record_clear_explanation">Hide all saved history immediately and reclaim its storage gradually in the background. Old history will not be imported again. Media files and filtering rules are not deleted.</string>
+    <string name="record_clear_error">Could not clear records. Please try again.</string>
+    <string name="record_storage_starting">Preparing bounded record storage…</string>
+    <string name="record_storage_maintenance">Reclaiming old diagnostic records in small background batches. File size will decrease gradually.</string>
+    <string name="record_storage_low_space">Low free space: record writes and cleanup are paused.</string>
+    <string name="record_storage_busy">Waiting for history readers before writing or reclaiming more space.</string>
+    <string name="record_storage_reusable">Old space can be reused; this legacy database format cannot shrink incrementally.</string>
+    <string name="record_storage_error">Record storage is temporarily unavailable. Filtering rules still apply.</string>
+    <string name="record_legacy_summary">Legacy summary: details and interception state were not retained.</string>
+    <string name="record_event_count">%1$d recorded calls</string>
+    <string name="record_query_sample">Queries grouped by app, media collection and filter state within one minute; details come from one auxiliary query sample and do not reproduce every returned result.</string>
+    <string name="record_filter_applied">Filtering was applied; unsampled results may differ.</string>
+    <string name="record_no_details">Call metadata only; details were not collected.</string>
+    <string name="record_sample_time">Sample taken at %1$s</string>
+    <string name="record_details_truncated">Details limited to 16 items / 8 KiB; long paths may be shortened and cannot be copied.</string>
 </resources>

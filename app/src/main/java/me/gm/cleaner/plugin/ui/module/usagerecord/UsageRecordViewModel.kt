@@ -46,6 +46,8 @@ class UsageRecordViewModel(
     private val binderViewModel: BinderViewModel,
 ) : AndroidViewModel(application) {
     private val tag = "MPM/UsageRecordVM"
+    private val _storageState = MutableStateFlow("starting")
+    val storageState = _storageState.asStateFlow()
 
     private val _isSearchingFlow: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isSearchingFlow: StateFlow<Boolean> = _isSearchingFlow.asStateFlow()
@@ -133,6 +135,9 @@ class UsageRecordViewModel(
         start: Long, end: Long,
         isHideQuery: Boolean, isHideInsert: Boolean, isHideDelete: Boolean
     ): UsageRecordState = withContext(Dispatchers.IO) {
+        _storageState.value = runCatching {
+            org.json.JSONObject(binderViewModel.recordStorageStatus()).optString("state", "error")
+        }.getOrDefault("error")
         val packageManager = getApplication<Application>().packageManager
         val operations = mutableListOf<Int>()
         if (!isHideQuery) {

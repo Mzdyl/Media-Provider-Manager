@@ -25,21 +25,18 @@ import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.BuildConfig
 import me.gm.cleaner.plugin.IManagerService
 import me.gm.cleaner.plugin.IMediaChangeObserver
-import me.gm.cleaner.plugin.R
-import me.gm.cleaner.plugin.dao.MIGRATION_1_2
-import me.gm.cleaner.plugin.dao.MIGRATION_2_3
+import me.gm.cleaner.plugin.dao.MIGRATION_1_4
+import me.gm.cleaner.plugin.dao.MIGRATION_2_4
+import me.gm.cleaner.plugin.dao.MIGRATION_3_4
+import me.gm.cleaner.plugin.recording.RecordWriter
+import me.gm.cleaner.plugin.recording.RecordBuffer
+import me.gm.cleaner.plugin.recording.RecordPolicy
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDao
 import me.gm.cleaner.plugin.dao.MediaProviderRecordDatabase
 import me.gm.cleaner.plugin.model.ParceledListSlice
 import me.gm.cleaner.plugin.model.SpIdentifiers
-import me.gm.cleaner.plugin.util.L
 import java.io.File
-import java.util.ArrayDeque
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 class ManagerService : IManagerService.Stub() {
     lateinit var classLoader: ClassLoader
@@ -57,13 +54,17 @@ class ManagerService : IManagerService.Stub() {
 
     private var appUid: Int = -1
 
-    // Async database write mechanism
-    private val recordQueue = ArrayDeque<MediaProviderRecord>()
-    private val recordQueueLock = Any()
-    private val droppedRecordCount = AtomicLong(0)
-    private var writeHandler: Handler? = null
-    private var handlerThread: HandlerThread? = null
-    private val hasPendingWrite = AtomicBoolean(false)
+    private var recordWriter: RecordWriter? = null
+    val recordingEnabled: Boolean get() = recordWriter?.enabled == true
+
+    fun queryRecordTicket(packageName: String, table: Int, filtered: Boolean): RecordBuffer.Ticket? =
+        recordWriter?.query(packageName, table, filtered, System.currentTimeMillis())
+
+    fun insertRecordAsync(record: MediaProviderRecord, ticket: RecordBuffer.Ticket? = null) {
+        recordWriter?.offer(record, ticket)
+    }
+
+    fun insertRecordsAsync(records: List<MediaProviderRecord>) { records.forEach { insertRecordAsync(it) } }
 
     private fun enforceCallerPermission() {
         val callingUid = Binder.getCallingUid()
@@ -83,149 +84,19 @@ class ManagerService : IManagerService.Stub() {
                 MediaProviderRecordDatabase::class.java,
                 MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME
             )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_4, MIGRATION_2_4, MIGRATION_3_4)
+            .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .build()
         dao = database.mediaProviderRecordDao()
-        
-        // Initialize async write handler
-        handlerThread = HandlerThread("MediaRecordWriter").also { it.start() }
-        writeHandler = object : Handler(handlerThread!!.looper) {
-            override fun handleMessage(msg: Message) {
-                if (msg.what == MSG_WRITE_RECORDS) {
-                    flushRecordQueue()
-                }
-            }
-        }
-        writeHandler?.post { pruneOldRecords() }
+
+        recordWriter = RecordWriter(database, context.getDatabasePath(MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME),
+            rootSp.getBoolean("usage_record", true), ::dispatchMediaChangeInternal)
     }
-    
-    /**
-     * Clean up resources when service is being destroyed.
-     * Should be called from Xposed hook when MediaProvider is shutting down.
-     */
+
     fun close() {
-        // Flush remaining records before shutdown
-        flushRecordQueueSync()
-
-        // Remove pending dispatch callbacks
-        writeHandler?.removeCallbacksAndMessages(null)
-        dispatchScheduled = false
-        
-        writeHandler = null
-        handlerThread?.quitSafely()
-        handlerThread = null
-
-        if (::database.isInitialized) database.close()
-        
-        // Clear observers
+        recordWriter?.close()
+        recordWriter = null
         observers.kill()
-    }
-    
-    /**
-     * Insert record asynchronously to avoid blocking MediaProvider thread.
-     * Records are batched and written in background thread.
-     */
-    fun insertRecordAsync(record: MediaProviderRecord) {
-        if (enqueueRecord(record)) scheduleFlush()
-    }
-    
-    /**
-     * Insert multiple records asynchronously.
-     */
-    fun insertRecordsAsync(records: List<MediaProviderRecord>) {
-        var enqueued = false
-        records.forEach { enqueued = enqueueRecord(it) || enqueued }
-        if (enqueued) scheduleFlush()
-    }
-
-    private fun enqueueRecord(record: MediaProviderRecord): Boolean {
-        if (writeHandler == null) return false
-        synchronized(recordQueueLock) {
-            if (recordQueue.size >= MAX_QUEUED_RECORDS) {
-                val dropped = droppedRecordCount.incrementAndGet()
-                if (dropped == 1L || dropped % DROPPED_RECORD_LOG_INTERVAL == 0L) {
-                    L.w(
-                        "ManagerService",
-                        "Dropped $dropped usage records because the writer queue is full",
-                    )
-                }
-                return false
-            }
-            recordQueue.offerLast(record)
-        }
-        return true
-    }
-
-    private fun drainRecordBatch(): List<MediaProviderRecord> = synchronized(recordQueueLock) {
-        buildList(minOf(recordQueue.size, MAX_BATCH_SIZE)) {
-            while (size < MAX_BATCH_SIZE) {
-                add(recordQueue.pollFirst() ?: break)
-            }
-        }
-    }
-
-    private fun hasQueuedRecords(): Boolean = synchronized(recordQueueLock) {
-        recordQueue.isNotEmpty()
-    }
-    
-    private fun scheduleFlush() {
-        if (hasPendingWrite.compareAndSet(false, true)) {
-            writeHandler?.sendEmptyMessageDelayed(MSG_WRITE_RECORDS, WRITE_DELAY_MS)
-        }
-    }
-    
-    private fun flushRecordQueue() {
-        hasPendingWrite.set(false)
-        val batch = drainRecordBatch()
-        
-        var persisted = false
-        if (batch.isNotEmpty()) {
-            try {
-                if (batch.size == 1) {
-                    dao.insert(batch[0])
-                } else {
-                    dao.insertAll(batch)
-                }
-                persisted = true
-            } catch (e: Exception) {
-                L.e("Failed to persist usage record batch", e)
-            }
-        }
-        
-        // If there are more records, schedule another flush
-        if (hasQueuedRecords()) {
-            scheduleFlush()
-        }
-        
-        // Dispatch media change after write
-        if (persisted) {
-            dispatchMediaChange()
-        }
-        maybePruneOldRecords()
-    }
-    
-    /**
-     * Synchronously flush all remaining records in the queue.
-     * Used during shutdown to ensure no records are lost.
-     */
-    private fun flushRecordQueueSync() {
-        while (hasQueuedRecords()) {
-            val batch = drainRecordBatch()
-            
-            if (batch.isNotEmpty()) {
-                try {
-                    if (batch.size == 1) {
-                        dao.insert(batch[0])
-                    } else {
-                        dao.insertAll(batch)
-                    }
-                } catch (e: Exception) {
-                    L.e("Failed to flush usage records", e)
-                }
-            } else {
-                break
-            }
-        }
     }
 
     private val packageManagerService: IInterface by lazy {
@@ -281,34 +152,34 @@ class ManagerService : IManagerService.Stub() {
     override fun writeSp(who: Int, what: String) {
         enforceCallerPermission()
         when (who) {
-            SpIdentifiers.ROOT_PREFERENCES -> rootSp.write(what)
+            SpIdentifiers.ROOT_PREFERENCES -> {
+                rootSp.write(what)
+                recordWriter?.setEnabled(rootSp.getBoolean("usage_record", true))
+            }
             SpIdentifiers.TEMPLATE_PREFERENCES -> ruleSp.write(what)
         }
     }
 
     override fun clearAllTables() {
         enforceCallerPermission()
-        val handler = writeHandler
-        if (handler == null || Looper.myLooper() == handler.looper) {
-            clearRecordsInternal()
-            return
-        }
-        val latch = CountDownLatch(1)
-        handler.post {
-            try {
-                clearRecordsInternal()
-            } finally {
-                latch.countDown()
-            }
-        }
-        if (!latch.await(CLEAR_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            throw IllegalStateException("Timed out clearing usage records")
-        }
+        checkNotNull(recordWriter) { "Record writer unavailable" }.clear()
+    }
+
+    override fun getRecordStorageStatus(): String {
+        enforceCallerPermission()
+        return recordWriter?.statusJson ?: "{\"state\":\"starting\"}"
+    }
+
+    @Suppress("WrongConstant") // Values are validated by the client-query protocol before this call.
+    fun loadRecords(start: Long, end: Long, operations: IntArray): android.database.Cursor {
+        if (recordWriter?.ready != true) return android.database.MatrixCursor(arrayOf("id"))
+        return dao.loadForTimeMillis(maxOf(start, System.currentTimeMillis() - RecordPolicy.RETENTION_MS), end, operations)
     }
 
     override fun packageUsageTimes(operation: Int, packageNames: List<String>): Int {
         enforceCallerPermission()
-        return dao.packageUsageTimes(operation, packageNames.toTypedArray())
+        if (recordWriter?.ready != true) return 0
+        return dao.packageUsageTimes(operation, packageNames.toTypedArray(), System.currentTimeMillis() - RecordPolicy.RETENTION_MS)
     }
 
     override fun registerMediaChangeObserver(observer: IMediaChangeObserver) {
@@ -321,63 +192,9 @@ class ManagerService : IManagerService.Stub() {
         observers.unregister(observer)
     }
 
-    private var lastDispatchTime = 0L
-    private var dispatchScheduled = false
+    fun dispatchMediaChange() { recordWriter?.signalChange() }
 
-    /**
-     * Dispatch media change with debouncing to avoid excessive notifications.
-     * Multiple calls within 500ms will be coalesced into a single notification.
-     * Uses a scheduled approach to batch multiple rapid changes.
-     */
-    @Synchronized
-    fun dispatchMediaChange() {
-        val now = SystemClock.uptimeMillis()
-        
-        // If we're within the debounce window, schedule a delayed dispatch
-        if (now - lastDispatchTime < DEBOUNCE_INTERVAL_MS) {
-            if (!dispatchScheduled) {
-                dispatchScheduled = true
-                writeHandler?.postDelayed({
-                    dispatchMediaChangeInternal()
-                }, DEBOUNCE_INTERVAL_MS - (now - lastDispatchTime))
-            }
-            return
-        }
-        
-        // Otherwise, dispatch immediately
-        dispatchMediaChangeInternal()
-    }
-
-    private fun clearRecordsInternal() {
-        writeHandler?.removeMessages(MSG_WRITE_RECORDS)
-        synchronized(recordQueueLock) { recordQueue.clear() }
-        hasPendingWrite.set(false)
-        database.clearAllTables()
-        dispatchMediaChange()
-    }
-
-    private var lastPruneTime = 0L
-
-    private fun maybePruneOldRecords() {
-        val now = System.currentTimeMillis()
-        if (now - lastPruneTime >= PRUNE_INTERVAL_MS) pruneOldRecords(now)
-    }
-
-    private fun pruneOldRecords(now: Long = System.currentTimeMillis()) {
-        try {
-            val deleted = dao.deleteOlderThan(now - RECORD_RETENTION_MS)
-            lastPruneTime = now
-            if (deleted > 0) dispatchMediaChange()
-        } catch (e: Exception) {
-            L.e("Failed to prune old usage records", e)
-        }
-    }
-    
     private fun dispatchMediaChangeInternal() {
-        val now = SystemClock.uptimeMillis()
-        lastDispatchTime = now
-        dispatchScheduled = false
-        
         var i = observers.beginBroadcast()
         while (i > 0) {
             i--
@@ -395,14 +212,5 @@ class ManagerService : IManagerService.Stub() {
     companion object {
         const val MEDIA_PROVIDER_USAGE_RECORD_DATABASE_NAME = "media_provider.db"
 
-        private const val MSG_WRITE_RECORDS = 1
-        private const val WRITE_DELAY_MS = 100L // Batch writes within 100ms
-        private const val MAX_BATCH_SIZE = 50
-        private const val MAX_QUEUED_RECORDS = 500
-        private const val DROPPED_RECORD_LOG_INTERVAL = 100L
-        private const val DEBOUNCE_INTERVAL_MS = 500L // Debounce interval for media change notifications
-        private const val CLEAR_TIMEOUT_SECONDS = 5L
-        private const val PRUNE_INTERVAL_MS = 6L * 60L * 60L * 1000L
-        private const val RECORD_RETENTION_MS = 90L * 24L * 60L * 60L * 1000L
     }
 }

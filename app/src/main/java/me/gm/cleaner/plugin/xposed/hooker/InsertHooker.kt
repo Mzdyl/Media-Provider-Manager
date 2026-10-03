@@ -27,7 +27,6 @@ import android.text.TextUtils
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.Hooker
 import me.gm.cleaner.plugin.xposed.util.Reflection
-import me.gm.cleaner.plugin.R
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.util.L
@@ -112,10 +111,7 @@ class InsertHooker(private val service: ManagerService) : Hooker, MediaProviderH
         // Recording failure must not undo a successfully evaluated insert restriction.
         try {
             /** RECORD - use async insert */
-            if (service.rootSp.getBoolean(
-                    service.resources.getString(R.string.usage_record_key), true
-                )
-            ) {
+            if (service.recordingEnabled) {
                 service.insertRecordAsync(
                     MediaProviderRecord(
                         0,

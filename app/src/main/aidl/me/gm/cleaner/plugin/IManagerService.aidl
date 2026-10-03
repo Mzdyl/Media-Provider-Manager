@@ -9,6 +9,8 @@ interface IManagerService {
 
     int getXposedApiVersion() = 1;
 
+    String getRecordStorageStatus() = 2;
+
     ParceledListSlice<PackageInfo> getInstalledPackages(int userId, int flags) = 10;
 
     PackageInfo getPackageInfo(String packageName, int flags, int userId) = 11;

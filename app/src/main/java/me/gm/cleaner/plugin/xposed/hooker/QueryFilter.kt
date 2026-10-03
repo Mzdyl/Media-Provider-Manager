@@ -95,6 +95,32 @@ internal object QueryFilter {
         )
     }
 
+    fun needsMediaTypeColumn(table: Int): Boolean = capabilitiesFor(table)?.mediaTypeStrategy == MediaTypeStrategy.COLUMN
+
+    /** Mirrors the SQL predicate for the diagnostic sample; never infer types from a filename. */
+    fun rejectsSample(templates: List<Template>, table: Int, data: String?, mimeType: String?, mediaType: Int?): Boolean {
+        val capabilities = capabilitiesFor(table) ?: return false
+        val permitted = templates.map { it.permittedMediaTypes.orEmpty().toSet() }
+            .filter { it.isNotEmpty() && it != ALL_MEDIA_TYPES }.flatten().toSet()
+        val typeRejected = permitted.isNotEmpty() && when (capabilities.mediaTypeStrategy) {
+            MediaTypeStrategy.COLUMN -> mimeType != null && mediaType !in permitted
+            MediaTypeStrategy.FIXED -> capabilities.fixedMediaType !in permitted
+            MediaTypeStrategy.UNSUPPORTED -> false
+        }
+        val pathRejected = capabilities.hasDataColumn && data != null && templates.any { template ->
+            template.filterPath.orEmpty().any { parent ->
+                val normalized = asciiLower(FileUtils.normalizePath(parent))
+                val child = asciiLower(data)
+                child == normalized || child.startsWith(if (normalized == "/") "/" else "$normalized/")
+            }
+        }
+        return typeRejected || pathRejected
+    }
+
+    private fun asciiLower(value: String): String = buildString(value.length) {
+        value.forEach { append(if (it in 'A'..'Z') it.lowercaseChar() else it) }
+    }
+
     private fun placeholders(count: Int): String = List(count) { "?" }.joinToString(", ")
 
     private fun escapeLike(value: String): String = buildString(value.length) {

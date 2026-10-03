@@ -33,6 +33,7 @@ public final class Api102Instrumentation extends Instrumentation {
     private Context context;
     private ContentResolver resolver;
     private IBinder service;
+    private boolean storageRegression;
     private final Uri media = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
     private final List<Uri> fixtures = new ArrayList<>();
     private final String suffix = UUID.randomUUID().toString();
@@ -41,6 +42,7 @@ public final class Api102Instrumentation extends Instrumentation {
 
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
+        storageRegression = arguments != null && "true".equals(arguments.getString("storageRegression"));
         start();
     }
 
@@ -106,6 +108,13 @@ public final class Api102Instrumentation extends Instrumentation {
         long installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).getLongVersionCode();
         check(call(0, p -> {}, Parcel::readInt) == installed, "Injected module version differs from installed version");
         awaitExternalVolume();
+        long readyDeadline = SystemClock.elapsedRealtime() + 30_000;
+        while (true) {
+            String state = new JSONObject(call(2, p -> {}, Parcel::readString)).getString("state");
+            if (state.equals("ready") || state.equals("maintenance") || state.equals("reusable_space")) break;
+            check(SystemClock.elapsedRealtime() < readyDeadline, "Record writer not ready: " + state);
+            Thread.sleep(100);
+        }
         String originalRoot = readSettings(ROOT);
         String originalRules = readSettings(RULES);
         JSONObject root = new JSONObject(originalRoot.isEmpty() ? "{}" : originalRoot);
@@ -168,6 +177,7 @@ public final class Api102Instrumentation extends Instrumentation {
             check(usageCount(2) > beforeDelete, "Delete must be recorded");
             check(usageCount(0) > 0, "Query must be recorded");
             check(usageCount(1) > 0, "Insert must be recorded");
+            if (storageRegression) verifyRecordControls(ids, visibleIds.subList(0, 2), root);
         } finally {
             stage("restore-and-cleanup");
             try {
@@ -189,13 +199,37 @@ public final class Api102Instrumentation extends Instrumentation {
                 try {
                     writeSettings(RULES, originalRules);
                 } finally {
-                    if (recordingChanged) writeSettings(ROOT, originalRoot);
+                    if (recordingChanged || storageRegression) writeSettings(ROOT, originalRoot);
                 }
             }
         }
         check(originalRoot.equals(readSettings(ROOT)), "Root settings must be restored exactly");
         check(originalRules.equals(readSettings(RULES)), "Rules must be restored exactly");
         stage("complete");
+    }
+
+    /** Opt in only: clears diagnostic history, never media or other apps' filter rules. */
+    private void verifyRecordControls(List<String> ids, List<Long> expected, JSONObject root) throws Exception {
+        stage("record-query-burst");
+        // The third visible fixture was deleted above. All queries must still return the same media.
+        call(30, p -> {}, p -> null);
+        for (int i = 0; i < 200; i++) check(queryIds(ids, null, 0).equals(expected), "Recording changed query results");
+        long deadline = SystemClock.elapsedRealtime() + 10_000;
+        while (usageCount(0) < 200 && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
+        check(usageCount(0) == 200, "Aggregated query count must equal successful calls");
+        stage("record-disable-and-clear");
+        writeSettings(ROOT, root.put("usage_record", false).toString());
+        int before = usageCount(0);
+        for (int i = 0; i < 20; i++) check(queryIds(ids, null, 0).equals(expected), "Disabling recording changed filtering");
+        Thread.sleep(300);
+        check(usageCount(0) == before, "Disabled recording accepted new events");
+        call(30, p -> {}, p -> null);
+        check(usageCount(0) == 0 && usageCount(1) == 0 && usageCount(2) == 0, "Clear must hide history immediately");
+        writeSettings(ROOT, root.put("usage_record", true).toString());
+        queryIds(ids, null, 0);
+        deadline = SystemClock.elapsedRealtime() + 10_000;
+        while (usageCount(0) == 0 && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
+        check(usageCount(0) == 1, "Recording did not resume after clear");
     }
 
     private void awaitExternalVolume() throws Exception {

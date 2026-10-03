@@ -27,7 +27,7 @@ import android.provider.MediaStore.Files.FileColumns
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.Hooker
 import me.gm.cleaner.plugin.xposed.util.Reflection
-import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.recording.RecordPolicy
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_DELETE
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.util.L
@@ -46,7 +46,7 @@ class DeleteHooker(private val service: ManagerService) : Hooker, MediaProviderH
     }
 
     private fun recordDelete(param: Chain) {
-        if (param.isFuseThread || param.isSystemCallingPackage) {
+        if (!service.recordingEnabled || param.isFuseThread || param.isSystemCallingPackage) {
             return
         }
         /** ARGUMENTS */
@@ -128,45 +128,34 @@ class DeleteHooker(private val service: ManagerService) : Hooker, MediaProviderH
                 val c = when {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Reflection.callMethod(
                         qb, "query", helper, projection, userWhere, userWhereArgs,
-                        null, null, null, null, null
+                        null, null, null, (RecordPolicy.MAX_DETAILS + 1).toString(), null
                     )
 
                     Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> Reflection.callMethod(
                         qb, "query", Reflection.callMethod(helper, "getWritableDatabase"),
-                        projection, userWhere, userWhereArgs, null, null, null, null, null
+                        projection, userWhere, userWhereArgs, null, null, null, (RecordPolicy.MAX_DETAILS + 1).toString(), null
                     )
 
                     else -> throw UnsupportedOperationException()
                 } as Cursor
                 try {
-                    if (c.count == 0) {
-                        // deleting nothing.
-                        return
-                    }
-                    while (c.moveToNext()) {
-                        data += c.getString(1)
-                        mimeType += c.getString(4)
+                    while (data.size <= RecordPolicy.MAX_DETAILS && c.moveToNext()) {
+                        data += RecordPolicy.clip(c.getString(1).orEmpty(), RecordPolicy.MAX_PATH_BYTES)
+                        mimeType += RecordPolicy.clip(c.getString(4).orEmpty(), RecordPolicy.MAX_MIME_BYTES)
                     }
                 } finally {
                     c.close()
                 }
             }
 
-            MediaTables.FILES -> if (userWhereArgs != null) {
-                data += userWhereArgs
-                data.mapTo(mimeType) { MimeUtils.resolveMimeType(File(it)) }
-            }
-
-            else -> return // We don't care about these data, just ignore.
+            MediaTables.FILES, MediaTables.FILES_ID -> Unit // Selection arguments are not proof of affected paths.
+            else -> Unit
         }
 
         // There is a system confirm dialog before deletion, thus we don't intercept delete operation.
 
         /** RECORD - use async insert */
-        if (service.rootSp.getBoolean(
-                service.resources.getString(R.string.usage_record_key), true
-            )
-        ) {
+        if (service.recordingEnabled) {
             service.insertRecordAsync(
                 MediaProviderRecord(
                     0,
@@ -176,7 +165,10 @@ class DeleteHooker(private val service: ManagerService) : Hooker, MediaProviderH
                     OP_DELETE,
                     data,
                     mimeType,
-                    MutableList(data.size) { false }
+                    MutableList(data.size) { false },
+                    sampleKind = if (data.isEmpty()) RecordPolicy.SAMPLE_NONE else RecordPolicy.SAMPLE_DETAILS,
+                    // Delete metadata is a bounded pre-operation sample, not a complete result set.
+                    detailsTruncated = true,
                 )
             )
         }
