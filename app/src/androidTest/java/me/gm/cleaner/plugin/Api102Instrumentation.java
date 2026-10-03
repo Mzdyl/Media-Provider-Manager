@@ -127,11 +127,13 @@ public final class Api102Instrumentation extends Instrumentation {
             stage("fixtures");
             List<String> ids = new ArrayList<>();
             List<Long> visibleIds = new ArrayList<>();
+            List<Uri> visibleUris = new ArrayList<>();
             for (int i = 0; i < 4; i++) ids.add(createImage(hidden, "hidden_" + i + ".png").getLastPathSegment());
             for (int i = 0; i < 3; i++) {
                 Uri uri = createImage(visible, "visible_" + i + ".png");
                 ids.add(uri.getLastPathSegment());
                 visibleIds.add(Long.parseLong(uri.getLastPathSegment()));
+                visibleUris.add(uri);
             }
             check(queryIds(ids, null, 0).size() == 7, "Baseline query must find all fixtures");
             stage("query-pagination-projection");
@@ -158,8 +160,9 @@ public final class Api102Instrumentation extends Instrumentation {
             createImage(visible, "permitted.png");
             stage("delete-and-records");
             int beforeDelete = usageCount(2);
-            Uri lastVisible = Uri.withAppendedPath(media, Long.toString(visibleIds.get(2)));
+            Uri lastVisible = visibleUris.get(2);
             check(resolver.delete(lastVisible, null, null) == 1, "Delete must still succeed");
+            fixtures.remove(lastVisible);
             long deadline = SystemClock.elapsedRealtime() + 10_000;
             while (usageCount(2) <= beforeDelete && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
             check(usageCount(2) > beforeDelete, "Delete must be recorded");
@@ -168,13 +171,26 @@ public final class Api102Instrumentation extends Instrumentation {
         } finally {
             stage("restore-and-cleanup");
             try {
-                writeSettings(RULES, originalRules);
-                for (Uri uri : fixtures) resolver.delete(uri, null, null);
+                // Keep other apps' rules active while allowing deletion of our own fixtures.
+                writeSettings(RULES, baseline.toString());
+                RuntimeException cleanupFailure = null;
+                for (Uri uri : fixtures) {
+                    try {
+                        resolver.delete(uri, null, null);
+                    } catch (RuntimeException failure) {
+                        if (cleanupFailure == null) cleanupFailure = failure;
+                    }
+                }
                 // Delete only empty directories, never recursively remove media.
                 new File(Environment.getExternalStorageDirectory(), hidden).delete();
                 new File(Environment.getExternalStorageDirectory(), visible).delete();
+                if (cleanupFailure != null) throw cleanupFailure;
             } finally {
-                if (recordingChanged) writeSettings(ROOT, originalRoot);
+                try {
+                    writeSettings(RULES, originalRules);
+                } finally {
+                    if (recordingChanged) writeSettings(ROOT, originalRoot);
+                }
             }
         }
         check(originalRoot.equals(readSettings(ROOT)), "Root settings must be restored exactly");

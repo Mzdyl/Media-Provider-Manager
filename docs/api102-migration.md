@@ -90,8 +90,9 @@ creates media fixtures under UUID-named Pictures directories, and verifies
 projection preservation, directory filtering before LIMIT/OFFSET pagination,
 cancellation, insert rejection/allowance, and delete/query/insert recording.
 Other apps' template bindings stay intact. It temporarily enables usage recording
-and isolates test rules to the module app; original configuration is restored in
-`finally`, fixture URIs are deleted, and only empty fixture directories are removed.
+and isolates test rules to the module app; fixture URIs are deleted without re-deleting the row used by the delete test,
+only empty fixture directories are removed, and original configuration is restored
+in `finally` even if a cleanup operation fails.
 Compare the configuration backups after the test, and remove the test APK.
 
 A successful build alone does not establish device compatibility. Record the
