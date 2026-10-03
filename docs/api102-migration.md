@@ -79,9 +79,11 @@ editing rules. Install the module and matching test APK, then run:
 
 ```sh
 adb shell am instrument -w -r \
-  -e class me.gm.cleaner.plugin.Api102DeviceTest \
-  me.gm.cleaner.plugin.test/androidx.test.runner.AndroidJUnitRunner
+  me.gm.cleaner.plugin.test/me.gm.cleaner.plugin.Api102Instrumentation
 ```
+
+The platform-only instrumentation runner avoids sharing AndroidX/Kotlin test dependencies
+with the R8-optimized target app. Success reports `api102_passed=true`.
 
 The test checks the actual injected API/module version and stable Binder protocol,
 creates media fixtures under UUID-named Pictures directories, and verifies
