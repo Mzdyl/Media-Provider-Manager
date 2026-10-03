@@ -39,7 +39,9 @@ open class JsonFileSpImpl(src: File) : SharedPreferencesWrapper() {
     }
 
     protected open fun validateContent(what: String) {
-        JSONObject(what)
+        // Legacy installs can have an empty file, which read() treats as defaults.
+        // Accept that same representation when restoring settings through Binder.
+        if (what.isNotEmpty()) JSONObject(what)
     }
 
     private fun parseDelegate(content: String?): JsonSharedPreferencesImpl {
