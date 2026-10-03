@@ -105,6 +105,7 @@ public final class Api102Instrumentation extends Instrumentation {
         check(call(1, p -> {}, Parcel::readInt) == 102, "Injected API must be 102");
         long installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).getLongVersionCode();
         check(call(0, p -> {}, Parcel::readInt) == installed, "Injected module version differs from installed version");
+        awaitExternalVolume();
         String originalRoot = readSettings(ROOT);
         String originalRules = readSettings(RULES);
         JSONObject root = new JSONObject(originalRoot.isEmpty() ? "{}" : originalRoot);
@@ -179,6 +180,25 @@ public final class Api102Instrumentation extends Instrumentation {
         check(originalRoot.equals(readSettings(ROOT)), "Root settings must be restored exactly");
         check(originalRules.equals(readSettings(RULES)), "Rules must be restored exactly");
         stage("complete");
+    }
+
+    private void awaitExternalVolume() throws Exception {
+        stage("await-external-volume");
+        long deadline = SystemClock.elapsedRealtime() + 30_000;
+        while (true) {
+            try (Cursor cursor = resolver.query(
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                    new String[]{"_id"}, "_id = -1", null, null)) {
+                check(cursor != null, "No external volume cursor");
+                return;
+            } catch (IllegalArgumentException notReady) {
+                if (notReady.getMessage() == null || !notReady.getMessage().contains("Volume") ||
+                        !notReady.getMessage().contains("not found") || SystemClock.elapsedRealtime() >= deadline) {
+                    throw notReady;
+                }
+                Thread.sleep(200);
+            }
+        }
     }
 
     private JSONObject rule(String operation, String directory) throws Exception {

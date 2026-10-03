@@ -7,6 +7,9 @@ class ReflectionTest {
     private open class Parent {
         private val identity = "caller"
         private fun inherited(value: String) = "parent:$value"
+        companion object {
+            @JvmStatic fun resolveVolumeName(uri: String) = uri.substringBefore(':')
+        }
     }
 
     private class Provider : Parent() {
@@ -66,6 +69,12 @@ class ReflectionTest {
         assertSame(failure, assertThrows(SecurityException::class.java) {
             Reflection.callMethod(Provider(), "fail", failure)
         })
+    }
+
+    @Test
+    fun resolvesStaticProviderHelpersAddressedThroughAnInstance() {
+        assertEquals("external", Reflection.callMethod(Provider(), "resolveVolumeName", "external:images"))
+        assertEquals("external", Reflection.callStaticMethod(Provider::class.java, "resolveVolumeName", "external:images"))
     }
 
     @Test

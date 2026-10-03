@@ -12,7 +12,7 @@ internal object Reflection {
         val owner: Class<*>,
         val name: String,
         val types: List<Class<*>?>,
-        val isStatic: Boolean,
+        val staticOnly: Boolean,
     )
 
     private val fields = ConcurrentHashMap<Pair<Class<*>, String>, Field>()
@@ -58,6 +58,8 @@ internal object Reflection {
 
     fun callMethod(receiver: Any?, name: String, vararg args: Any?): Any? {
         requireNotNull(receiver) { "Missing receiver for $name" }
+        // Legacy call sites can address a static helper through an instance (e.g.
+        // MediaProvider.resolveVolumeName). Method.invoke deliberately permits this.
         return invoke(resolve(receiver.javaClass, name, args, false), receiver, args)
     }
 
@@ -71,11 +73,11 @@ internal object Reflection {
         throw exception.targetException
     }
 
-    private fun resolve(owner: Class<*>, name: String, args: Array<out Any?>, isStatic: Boolean): Method {
-        val key = MethodKey(owner, name, args.map { it?.javaClass }, isStatic)
+    private fun resolve(owner: Class<*>, name: String, args: Array<out Any?>, staticOnly: Boolean): Method {
+        val key = MethodKey(owner, name, args.map { it?.javaClass }, staticOnly)
         methods[key]?.let { return it }
         val candidates = (hierarchy(owner).flatMap { it.declaredMethods.asSequence() } + owner.methods.asSequence())
-            .filter { it.name == name && Modifier.isStatic(it.modifiers) == isStatic && it.parameterCount == args.size }
+            .filter { it.name == name && (!staticOnly || Modifier.isStatic(it.modifiers)) && it.parameterCount == args.size }
             .distinctBy { it.parameterTypes.toList() }
             .mapNotNull { method ->
                 val scores = method.parameterTypes.mapIndexed { index, type -> score(type, key.types[index]) }
