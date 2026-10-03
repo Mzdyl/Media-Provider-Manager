@@ -2,6 +2,8 @@
 
 An Xposed module intended to prevent media storage abuse.
 
+This fork focuses on media access rules and usage records, based on [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager). See the [1.0.0 changelog](CHANGELOG.md) for changes from upstream and upgrade notes.
+
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/+rx5V9umZI4FjMWNl)
 [![Stars](https://img.shields.io/github/stars/Mzdyl/Media-Provider-Manager?label=Stars)](https://github.com/Mzdyl/Media-Provider-Manager)
 [![Download](https://img.shields.io/github/v/release/Mzdyl/Media-Provider-Manager?label=Download)](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
@@ -24,13 +26,15 @@ As with native storage, Android does not offer a fine-grained management scheme 
 
 ## Features
 
-- Media file manager built with only media store API.
+- Per-app media access rules with shared templates and clipboard backup/restore.
 - Filter data returned from the media store to protect your privacy.
 - Prevent apps from freewheelingly writing files via the media store.
 - Provide a usage record feature to help you be aware of how applications use the media store.
 - Prevent 💩 ROM's download manager from creating non-standard files.
 - Material 3.
 - Open source.
+
+The upstream media browser, image viewer, video player, and playground are not included in this fork.
 
 ## Configuring rules and troubleshooting
 

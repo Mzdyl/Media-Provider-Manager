@@ -2,6 +2,8 @@
 
 防止媒体存储滥用的 Xposed 模块。
 
+本分支基于 [MaterialCleaner/Media-Provider-Manager](https://github.com/MaterialCleaner/Media-Provider-Manager)，专注媒体访问规则与使用记录。相对上游的变化和升级说明见 [1.0.0 更新日志](CHANGELOG.md)。
+
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/+rx5V9umZI4FjMWNl)
 [![Stars](https://img.shields.io/github/stars/Mzdyl/Media-Provider-Manager?label=Stars)](https://github.com/Mzdyl/Media-Provider-Manager)
 [![Download](https://img.shields.io/github/v/release/Mzdyl/Media-Provider-Manager?label=Download)](https://github.com/Mzdyl/Media-Provider-Manager/releases/latest)
@@ -24,13 +26,15 @@
 
 ## 特性
 
-- 纯媒体存储 API 打造的媒体文件管理器
+- 按应用配置媒体访问规则，支持共享模板和剪贴板备份、恢复
 - 过滤媒体存储返回的数据，保护隐私数据不被查询
 - 防止应用通过媒体存储随意写入文件
 - 提供历史记录功能，帮助您了解应用如何使用媒体存储
 - 阻止 💩 ROM 的下载管理程序创建不规范文件
 - 质感设计 3
 - 开源
+
+本分支不包含上游的媒体浏览器、图片查看器、视频播放器和 Playground。
 
 ## 配置规则与排查
 
