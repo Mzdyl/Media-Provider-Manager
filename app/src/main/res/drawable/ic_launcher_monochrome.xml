@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simplify the rear card to a rounded tab with a clear four-unit gap. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M39,29H64A2,2 0,0 1,64,33H39A2,2 0,0 1,39,29Z" />
+    <!-- Clear space around the shield must remain transparent for any system tint. -->
+    <group>
+        <clip-path
+            android:fillType="evenOdd"
+            android:pathData="M0,0H108V108H0Z M68,48L83,54V65C83,75 76,81 68,85C60,81 53,75 53,65V54Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M36,37H66Q72,37 72,43V66Q72,72 66,72H36Q30,72 30,66V43Q30,37 36,37Z M38,42Q35,42 35,45V64Q35,67 38,67H64Q67,67 67,64V45Q67,42 64,42Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M47,49A3,3 0,1 1,41,49A3,3 0,1 1,47,49Z M38,62L45,54L52,62Z" />
+    </group>
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M68,52L80,57V65C80,73 74,78 68,81C62,78 56,73 56,65V57Z M61.37,66.63A1.6,1.6 0,0 1,63.63,64.37L66.46,67.2L72.33,60.91A1.6,1.6 0,0 1,74.67,63.09L67.67,70.59A1.6,1.6 0,0 1,65.37,70.63Z" />
+</vector>

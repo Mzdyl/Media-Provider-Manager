@@ -41,9 +41,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -187,6 +189,8 @@ private fun DrawerHeader(
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val configuration = LocalConfiguration.current
     val moduleActivatedMessage = stringResource(R.string.module_activated)
     var pollingJob by remember { mutableStateOf<Job?>(null) }
 
@@ -257,9 +261,13 @@ private fun DrawerHeader(
             .padding(horizontal = 18.dp, vertical = 20.dp),
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_outline_apps_24),
+            painter = rememberDrawablePainter(
+                remember(resources, configuration) {
+                    resources.getDrawable(R.mipmap.ic_launcher, null)
+                },
+            ),
             contentDescription = null,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(48.dp),
         )
         Spacer(modifier = Modifier.size(12.dp))
         Text(

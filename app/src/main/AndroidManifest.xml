@@ -29,7 +29,8 @@
 
     <application
         android:name=".app.App"
-        android:icon="@drawable/ic_outline_apps_24"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"
         android:multiArch="true"

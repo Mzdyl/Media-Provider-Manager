@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep the media card and shield within the adaptive icon's central safe area. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A second card suggests an organized media library. -->
+    <group android:rotation="-9" android:pivotX="54" android:pivotY="51">
+        <path
+            android:fillColor="#AFC9FF"
+            android:pathData="M39,31H68Q73,31 73,36V61Q73,66 68,66H39Q34,66 34,61V36Q34,31 39,31Z" />
+    </group>
+    <path
+        android:fillColor="#142A80"
+        android:fillAlpha="0.18"
+        android:pathData="M37,40H67Q73,40 73,46V69Q73,75 67,75H37Q31,75 31,69V46Q31,40 37,40Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,37H66Q72,37 72,43V66Q72,72 66,72H36Q30,72 30,66V43Q30,37 36,37Z" />
+    <path
+        android:fillColor="#E9F0FF"
+        android:pathData="M38,43H64Q66,43 66,45V63Q66,65 64,65H38Q36,65 36,63V45Q36,43 38,43Z" />
+    <path
+        android:fillColor="#648FEA"
+        android:pathData="M47,49A3,3 0,1 1,41,49A3,3 0,1 1,47,49Z" />
+    <path
+        android:fillColor="#ABC5FA"
+        android:pathData="M36,60L44,52L57,65H38Q36,65 36,63Z" />
+    <path
+        android:fillColor="#4477DF"
+        android:pathData="M45,65L57,51L66,60V63Q66,65 64,65Z" />
+    <!-- A mint shield emphasizes control and privacy without fine detail. -->
+    <path
+        android:fillColor="#203EAA"
+        android:fillAlpha="0.18"
+        android:pathData="M67,52L80,57V65C80,74 73,79 67,82C61,79 54,74 54,65V57Z" />
+    <path
+        android:fillColor="#B9F5DF"
+        android:pathData="M68,52L80,57V65C80,73 74,78 68,81C62,78 56,73 56,65V57Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#176B63"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M62.5,65.5L66.5,69.5L73.5,62" />
+</vector>
