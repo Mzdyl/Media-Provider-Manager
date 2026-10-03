@@ -25,9 +25,9 @@
     <string name="active_pending_scope_restart">已激活，待重启作用域</string>
     <string name="loading">加载中…</string>
     <string name="enabled_rule_count">已启用 %d 条规则</string>
-    <string name="query_times">查询 %d 次</string>
-    <string name="insert_times">插入 %d 次</string>
-    <string name="delete_times">删除 %d 次</string>
+    <string name="query_times">保留记录中查询 %d 次</string>
+    <string name="insert_times">保留记录中尝试插入 %d 次</string>
+    <string name="delete_times">保留记录中尝试删除 %d 次</string>
     <string name="delimiter">、</string>
     <string name="app_info">应用信息</string>
     <string name="queried_at">查询于\ </string>
@@ -68,7 +68,7 @@
     <string name="global_header">全局</string>
     <string name="reject_nonstandard_dir_title">禁止创建不规范文件夹</string>
     <string name="reject_nonstandard_dir_summary">在 AOSP 中系统应用不会创建非标准文件夹，但是一些设备生产商修改了这一行为。</string>
-    <string name="usage_record_summary">将使用记录保存到数据库。关闭后使用记录页面将不会再出现新的数据。</string>
+    <string name="usage_record_summary">最多保留 7 天、5000 组。查询在一分钟内归并计数，仅保留一次明细采样（最多 8 KiB）。关闭会丢弃待保存记录，过滤和后台清理仍继续。</string>
     <string name="scoped_header">作用域</string>
     <string name="template_management_title">模板管理</string>
     <string name="applied_app_count">应用到 %d 个应用</string>
@@ -146,4 +146,20 @@
     <string name="media_types_hint">勾选允许访问的类型。不选或全选表示不限制类型；路径过滤仍生效。</string>
     <string name="filter_paths_hint">从媒体查询中隐藏这些目录及子目录。应用已有缓存和云端副本可能仍然显示。</string>
     <string name="template_scope_hint">应用于 %1$d 个应用。点击保存后生效；在应用管理中添加或移除应用。</string>
+    <string name="record_policy_summary">最多保留 7 天、5000 组；旧库回收后日志库不超过 64 MiB。列表显示最近 500 组。采样记录不等于完整审计。</string>
+    <string name="record_clear_explanation">立即隐藏全部历史记录，磁盘空间由后台分批回收；旧历史不会再次导入。不会删除媒体文件或过滤规则。</string>
+    <string name="record_clear_error">清空记录失败，请稍后重试。</string>
+    <string name="record_storage_starting">正在准备有容量限制的记录存储…</string>
+    <string name="record_storage_maintenance">正在后台分批回收旧记录，文件大小会逐步下降。</string>
+    <string name="record_storage_low_space">剩余空间不足，记录写入和清理已暂停。</string>
+    <string name="record_storage_busy">正在等待读取历史记录的操作结束，再继续写入和回收。</string>
+    <string name="record_storage_reusable">旧空间已可复用，但此旧库格式不支持增量缩小文件。</string>
+    <string name="record_storage_error">记录存储暂不可用，过滤规则仍然生效。</string>
+    <string name="record_legacy_summary">旧版摘要：未保留明细和拦截状态。</string>
+    <string name="record_event_count">已记录 %1$d 次调用</string>
+    <string name="record_query_sample">按应用、媒体集合和过滤状态在一分钟内归并；明细来自一次辅助查询采样，不等同于每次调用实际返回的结果。</string>
+    <string name="record_filter_applied">已应用过滤规则，未采样的结果可能不同。</string>
+    <string name="record_no_details">仅记录调用信息，未采集明细。</string>
+    <string name="record_sample_time">明细采样于 %1$s</string>
+    <string name="record_details_truncated">明细限制为 16 项 / 8 KiB；长路径可能缩短，已禁用复制。</string>
 </resources>

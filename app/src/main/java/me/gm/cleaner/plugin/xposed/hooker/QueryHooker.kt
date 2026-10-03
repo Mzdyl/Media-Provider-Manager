@@ -31,14 +31,12 @@ import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.Hooker
 import me.gm.cleaner.plugin.xposed.util.Reflection
 import me.gm.cleaner.plugin.BuildConfig
-import me.gm.cleaner.plugin.R
+import me.gm.cleaner.plugin.recording.RecordPolicy
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 import me.gm.cleaner.plugin.dao.MediaProviderRecord
 import me.gm.cleaner.plugin.model.Template
 import me.gm.cleaner.plugin.util.L
 import me.gm.cleaner.plugin.xposed.ManagerService
-import me.gm.cleaner.plugin.xposed.util.MimeUtils
-import java.io.File
 import java.util.function.Consumer
 import java.util.function.Function
 
@@ -65,11 +63,10 @@ class QueryHooker(
                     "at ${state.uri} (table=${state.table}); returned the unfiltered query instead",
                 failure,
             )
-            return result
         }
         if (result is Cursor) {
             try {
-                handleQueryResult(chain, state)
+                handleQueryResult(chain, if (outcome.filterFailure == null) state else state.copy(sqlFilterApplied = false, mediaTypeFilterApplied = false))
             } catch (t: Throwable) {
                 L.e("QueryHooker", "Failed to record query result; returning original cursor", t)
             }
@@ -101,10 +98,7 @@ class QueryHooker(
             return null
         }
         val templates = service.ruleSp.templates.getFilteredTemplates("query", callingPackage)
-        val shouldRecord = service.rootSp.getBoolean(
-            service.resources.getString(R.string.usage_record_key),
-            true,
-        )
+        val shouldRecord = service.recordingEnabled
         if (templates.isEmpty() && !shouldRecord) return null
 
         val sqlFilter = QueryFilter.build(templates, table)
@@ -193,31 +187,40 @@ class QueryHooker(
     ) {
         if (!state.shouldRecord) return
 
-        val rows = queryAuxiliaryRows(param, state, MAX_RECORD_SIZE)
-        val intercepted = if (state.sqlFilterApplied) {
-            rows.map { row ->
-                service.ruleSp.templates.shouldIntercept(
-                    state.templates,
-                    row.data,
-                    row.mimeType.takeIf { state.mediaTypeFilterApplied },
-                )
-            }
-        } else {
-            List(rows.size) { false }
-        }
-        recordQuery(state, rows, intercepted)
+        val ticket = service.queryRecordTicket(state.callingPackage, state.table, state.sqlFilterApplied) ?: return
+        val sample = if (ticket.capture) runCatching {
+            queryAuxiliaryRows(param, state, RecordPolicy.MAX_DETAILS + 1)
+        }.onFailure { L.e("QueryHooker", "Could not collect diagnostic sample", it) }.getOrNull() else null
+        val rows = sample.orEmpty().take(RecordPolicy.MAX_DETAILS)
+        service.insertRecordAsync(MediaProviderRecord(
+            id = 0, timeMillis = ticket.time, packageName = state.callingPackage,
+            match = state.table, operation = OP_QUERY,
+            data = rows.map { it.data }, mimeType = rows.map { it.mimeType },
+            intercepted = rows.map { it.intercepted },
+            sampleKind = if (sample != null) RecordPolicy.SAMPLE_DETAILS else RecordPolicy.SAMPLE_NONE,
+            detailsTruncated = sample.orEmpty().size > RecordPolicy.MAX_DETAILS || rows.any { it.truncated },
+            filterApplied = state.sqlFilterApplied,
+        ), ticket)
     }
 
     private fun queryAuxiliaryRows(
         param: Chain,
         state: QueryState,
         maxRows: Int,
-    ): List<MediaRow> {
+    ): List<MediaRow>? {
         val helper = try {
             Reflection.callMethod(param.provider, "getDatabaseForUri", state.uri)
         } catch (t: Throwable) {
             dlog("Unable to resolve database for auxiliary query: $t")
-            return emptyList()
+            return null
+        }
+        val requestedLimit = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            state.query.getString(ContentResolver.QUERY_ARG_SQL_LIMIT) else state.uri.getQueryParameter("limit")
+        val limit = RecordPolicy.capSqlLimit(requestedLimit, maxRows) ?: return null
+        val limitedQuery = Bundle(state.query).apply {
+            putString(ContentResolver.QUERY_ARG_SQL_LIMIT, limit)
+            remove(ContentResolver.QUERY_ARG_LIMIT)
+            remove(ContentResolver.QUERY_ARG_OFFSET)
         }
         val honoredArgs = Consumer<String> { }
         val queryBuilder = callGetQueryBuilder(
@@ -225,10 +228,13 @@ class QueryHooker(
             TYPE_QUERY,
             state.table,
             state.uri,
-            Bundle(state.query),
+            Bundle(limitedQuery),
             honoredArgs,
-        ) ?: return emptyList()
-        val projection = arrayOf(FileColumns._ID, FileColumns.DATA, FileColumns.MIME_TYPE)
+        ) ?: return null
+        val projection = buildList {
+            add(FileColumns._ID); add(FileColumns.DATA); add(FileColumns.MIME_TYPE)
+            if (QueryFilter.needsMediaTypeColumn(state.table)) add(FileColumns.MEDIA_TYPE)
+        }.toTypedArray()
 
         val cursor = try {
             when {
@@ -237,7 +243,7 @@ class QueryHooker(
                     "query",
                     helper,
                     projection,
-                    Bundle(state.query),
+                    Bundle(limitedQuery),
                     state.signal,
                 )
 
@@ -262,55 +268,37 @@ class QueryHooker(
                         groupBy,
                         null,
                         sortOrder,
-                        state.uri.getQueryParameter("limit"),
+                        limit,
                         state.signal,
                     )
                 }
 
-                else -> return emptyList()
+                else -> return null
             } as Cursor
         } catch (t: Throwable) {
             dlog("Auxiliary query failed: $t")
-            return emptyList()
+            return null
         }
 
         return cursor.use {
-            val idColumn = it.getColumnIndex(FileColumns._ID)
             val dataColumn = it.getColumnIndex(FileColumns.DATA)
             val mimeTypeColumn = it.getColumnIndex(FileColumns.MIME_TYPE)
-            val rows = ArrayList<MediaRow>(minOf(it.count, maxRows))
+            val mediaTypeColumn = it.getColumnIndex(FileColumns.MEDIA_TYPE)
+            val rows = ArrayList<MediaRow>(maxRows)
             while (rows.size < maxRows && it.moveToNext()) {
                 val data = it.stringOrNull(dataColumn)
-                rows += MediaRow(
-                    id = if (idColumn >= 0) it.getLong(idColumn) else NO_ID,
-                    data = data,
-                    mimeType = it.stringOrNull(mimeTypeColumn)
-                        ?: data?.let { path -> MimeUtils.resolveMimeType(File(path)) },
+                val mimeType = it.stringOrNull(mimeTypeColumn)
+                val mediaType = if (mediaTypeColumn >= 0 && !it.isNull(mediaTypeColumn)) it.getInt(mediaTypeColumn) else null
+                val blocked = state.sqlFilterApplied && QueryFilter.rejectsSample(
+                    state.templates, state.table, data, mimeType, mediaType,
                 )
+                val pathSample = RecordPolicy.clip(data.orEmpty(), RecordPolicy.MAX_PATH_BYTES)
+                val mimeSample = RecordPolicy.clip(mimeType.orEmpty(), RecordPolicy.MAX_MIME_BYTES)
+                rows += MediaRow(pathSample, mimeSample, blocked,
+                    pathSample != data.orEmpty() || mimeSample != mimeType.orEmpty())
             }
             rows
         }
-    }
-
-    private fun recordQuery(
-        state: QueryState,
-        rows: List<MediaRow>,
-        intercepted: List<Boolean> = List(rows.size) { false },
-    ) {
-        if (rows.isEmpty()) return
-        val size = minOf(rows.size, intercepted.size, MAX_RECORD_SIZE)
-        service.insertRecordAsync(
-            MediaProviderRecord(
-                id = 0,
-                timeMillis = System.currentTimeMillis(),
-                packageName = state.callingPackage,
-                match = state.table,
-                operation = OP_QUERY,
-                data = List(size) { rows[it].data.orEmpty() },
-                mimeType = List(size) { rows[it].mimeType.orEmpty() },
-                intercepted = List(size) { intercepted[it] },
-            ),
-        )
     }
 
     private fun Cursor.stringOrNull(column: Int): String? =
@@ -338,7 +326,7 @@ class QueryHooker(
         if (operations.isEmpty()) return MatrixCursor(MediaProviderRecordColumns.ALL)
 
         @Suppress("WrongConstant")
-        return service.dao.loadForTimeMillis(start, end, operations)
+        return service.loadRecords(start, end, operations)
     }
 
     private sealed interface PreparedQuery
@@ -358,11 +346,7 @@ class QueryHooker(
         val mediaTypeFilterApplied: Boolean,
     ) : PreparedQuery
 
-    private data class MediaRow(
-        val id: Long,
-        val data: String?,
-        val mimeType: String?,
-    )
+    private data class MediaRow(val data: String, val mimeType: String, val intercepted: Boolean, val truncated: Boolean)
 
     private object MediaProviderRecordColumns {
         val ALL = arrayOf(
@@ -381,7 +365,5 @@ class QueryHooker(
         private const val BINDER_EXTRA_KEY = "me.gm.cleaner.plugin.cursor.extra.BINDER"
         private const val INCLUDED_DEFAULT_DIRECTORIES = "android:included-default-directories"
         private const val TYPE_QUERY = 0
-        private const val MAX_RECORD_SIZE = 1_000
-        private const val NO_ID = -1L
     }
 }

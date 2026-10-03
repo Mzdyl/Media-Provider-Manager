@@ -25,9 +25,9 @@
     <string name="active_pending_scope_restart">已啟動，待重啟作用域</string>
     <string name="loading">載入中…</string>
     <string name="enabled_rule_count">已啟用 %d 條規則</string>
-    <string name="query_times">查詢 %d 次</string>
-    <string name="insert_times">插入 %d 次</string>
-    <string name="delete_times">刪除 %d 次</string>
+    <string name="query_times">保留記錄中查詢 %d 次</string>
+    <string name="insert_times">保留記錄中嘗試插入 %d 次</string>
+    <string name="delete_times">保留記錄中嘗試刪除 %d 次</string>
     <string name="delimiter">、</string>
     <string name="app_info">應用訊息</string>
     <string name="queried_at">查詢於\ </string>
@@ -68,7 +68,7 @@
     <string name="global_header">全域性</string>
     <string name="reject_nonstandard_dir_title">禁止建立不規範資料夾</string>
     <string name="reject_nonstandard_dir_summary">在 AOSP 中系統應用不會建立非標準資料夾，但是一些裝置生產商修改了這一行為。</string>
-    <string name="usage_record_summary">將使用記錄儲存到資料庫。關閉後使用記錄頁面將不會再出現新的資料。</string>
+    <string name="usage_record_summary">最多保留 7 天、5000 組。查詢在一分鐘內歸併計數，僅保留一次明細採樣（最多 8 KiB）。關閉會捨棄待儲存記錄，過濾和背景清理仍繼續。</string>
     <string name="scoped_header">作用域</string>
     <string name="template_management_title">模板管理</string>
     <string name="applied_app_count">應用到 %d 個應用</string>
@@ -126,4 +126,20 @@
     <string name="media_types_hint">勾選允許存取的類型。不選或全選表示不限制類型；路徑過濾仍生效。</string>
     <string name="filter_paths_hint">從媒體查詢中隱藏這些目錄及子目錄。應用程式既有快取和雲端副本可能仍然顯示。</string>
     <string name="template_scope_hint">套用至 %1$d 個應用程式。點選儲存後生效；在應用程式管理中新增或移除應用程式。</string>
+    <string name="record_policy_summary">最多保留 7 天、5000 組；舊庫回收後記錄庫不超過 64 MiB。清單顯示最近 500 組。採樣記錄不等於完整稽核。</string>
+    <string name="record_clear_explanation">立即隱藏全部歷史記錄，磁碟空間由背景分批回收；舊歷史不會再次匯入。不會刪除媒體檔案或過濾規則。</string>
+    <string name="record_clear_error">清空記錄失敗，請稍後重試。</string>
+    <string name="record_storage_starting">正在準備有容量限制的記錄儲存…</string>
+    <string name="record_storage_maintenance">正在背景分批回收舊記錄，檔案大小會逐步下降。</string>
+    <string name="record_storage_low_space">剩餘空間不足，記錄寫入和清理已暫停。</string>
+    <string name="record_storage_busy">正在等候讀取歷史記錄的操作結束，再繼續寫入和回收。</string>
+    <string name="record_storage_reusable">舊空間已可重用，但此舊庫格式不支援增量縮小檔案。</string>
+    <string name="record_storage_error">記錄儲存暫不可用，過濾規則仍然生效。</string>
+    <string name="record_legacy_summary">舊版摘要：未保留明細和攔截狀態。</string>
+    <string name="record_event_count">已記錄 %1$d 次呼叫</string>
+    <string name="record_query_sample">依應用程式、媒體集合和過濾狀態在一分鐘內歸併；明細來自一次輔助查詢採樣，不等同於每次呼叫實際傳回的結果。</string>
+    <string name="record_filter_applied">已套用過濾規則，未採樣的結果可能不同。</string>
+    <string name="record_no_details">僅記錄呼叫資訊，未採集明細。</string>
+    <string name="record_sample_time">明細採樣於 %1$s</string>
+    <string name="record_details_truncated">明細限制為 16 項 / 8 KiB；長路徑可能縮短，已停用複製。</string>
 </resources>

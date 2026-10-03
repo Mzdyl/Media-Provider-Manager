@@ -105,6 +105,9 @@ fun UsageRecordScreen(
     val recordsState by viewModel.recordsFlow.collectAsStateWithLifecycle(initialValue = null)
     val isSearching by viewModel.isSearchingFlow.collectAsStateWithLifecycle()
     val searchQuery by viewModel.queryTextFlow.collectAsStateWithLifecycle()
+    val storageState by viewModel.storageState.collectAsStateWithLifecycle()
+    var showClearConfirmation by remember { mutableStateOf(false) }
+    val clearError = stringResource(R.string.record_clear_error)
     var showFilterMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var detailRecord by remember { mutableStateOf<MediaProviderRecord?>(null) }
@@ -133,6 +136,22 @@ fun UsageRecordScreen(
                 binderViewModel.unregisterMediaChangeObserver(observer)
             }
         }
+    }
+
+    if (showClearConfirmation) {
+        AlertDialog(onDismissRequest = { showClearConfirmation = false },
+            title = { Text(stringResource(R.string.menu_clear)) },
+            text = { Text(stringResource(R.string.record_clear_explanation)) },
+            confirmButton = { TextButton(onClick = {
+                showClearConfirmation = false
+                scope.launch {
+                    val result = runCatching { withContext(Dispatchers.IO) { binderViewModel.clearAllTables() } }
+                    if (result.isFailure) snackbarHostState.showSnackbar(clearError)
+                    viewModel.reload()
+                }
+            }) { Text(stringResource(R.string.confirm)) } },
+            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 
     if (showDatePicker) {
@@ -233,12 +252,7 @@ fun UsageRecordScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_clear)) },
                                 onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            binderViewModel.clearAllTables()
-                                        }
-                                        viewModel.reload()
-                                    }
+                                    showClearConfirmation = true
                                     showFilterMenu = false
                                 },
                                 leadingIcon = {
@@ -263,6 +277,17 @@ fun UsageRecordScreen(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
+                        Text(stringResource(R.string.record_policy_summary), style = MaterialTheme.typography.bodySmall)
+                        val statusMessage = when (storageState) {
+                            "starting" -> R.string.record_storage_starting
+                            "maintenance" -> R.string.record_storage_maintenance
+                            "low_space" -> R.string.record_storage_low_space
+                            "reader_busy" -> R.string.record_storage_busy
+                            "reusable_space" -> R.string.record_storage_reusable
+                            "error" -> R.string.record_storage_error
+                            else -> null
+                        }
+                        statusMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
                         AnimatedVisibility(visible = isSearching) {
                             OutlinedTextField(
                                 value = searchQuery,
@@ -375,7 +400,7 @@ private fun UsageRecordItem(
         OP_DELETE -> Color(0xFFD32F2F)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val operationText = if (isIntercepted) {
+    val operationText = if (isIntercepted && record.operation == OP_INSERT) {
         buildAnnotatedString {
             pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
             append("$operationLabel$timeStr")
@@ -423,6 +448,8 @@ private fun UsageRecordItem(
                     )
                 }
             }
+            Text(recordExplanation(record), style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 44.dp))
             record.data.firstOrNull()?.let { firstData ->
                 Text(
                     text = firstData,
@@ -463,6 +490,7 @@ private fun UsageRecordDetailDialog(
                     .heightIn(max = 360.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
+                Text(recordExplanation(record), style = MaterialTheme.typography.bodySmall)
                 record.data.forEachIndexed { index, data ->
                     val itemText = if (record.intercepted.getOrNull(index) == true) {
                         buildAnnotatedString {
@@ -478,7 +506,7 @@ private fun UsageRecordDetailDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onCopy(data) }
+                            .clickable(enabled = !record.detailsTruncated) { onCopy(data) }
                             .padding(vertical = 12.dp),
                     )
                     if (index != record.data.lastIndex) {
@@ -493,4 +521,21 @@ private fun UsageRecordDetailDialog(
             }
         },
     )
+}
+
+@Composable
+private fun recordExplanation(record: MediaProviderRecord): String {
+    if (record.sampleKind == me.gm.cleaner.plugin.recording.RecordPolicy.SAMPLE_LEGACY) return stringResource(R.string.record_legacy_summary)
+    val parts = mutableListOf(stringResource(R.string.record_event_count, record.eventCount))
+    if (record.operation == OP_QUERY) {
+        parts += stringResource(R.string.record_query_sample)
+        if (record.filterApplied) parts += stringResource(R.string.record_filter_applied)
+    }
+    if (record.sampleKind == me.gm.cleaner.plugin.recording.RecordPolicy.SAMPLE_NONE) parts += stringResource(R.string.record_no_details)
+    else {
+        val time = DateUtils.formatDateTime(LocalContext.current, record.sampleTimeMillis, DateUtils.FORMAT_SHOW_TIME)
+        parts += stringResource(R.string.record_sample_time, time)
+    }
+    if (record.detailsTruncated) parts += stringResource(R.string.record_details_truncated)
+    return parts.joinToString(" · ")
 }

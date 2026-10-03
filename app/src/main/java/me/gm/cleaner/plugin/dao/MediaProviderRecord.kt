@@ -27,8 +27,10 @@ import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_INSERT
 import me.gm.cleaner.plugin.dao.MediaProviderOperation.Companion.OP_QUERY
 
 @Entity(
+    tableName = "UsageRecord",
     indices = [
-        Index(value = ["time_millis", "operation"]),
+        Index(value = ["time_millis"]),
+        Index(value = ["aggregate_key"], unique = true),
         Index(value = ["package_name", "operation"]),
     ],
 )
@@ -44,6 +46,13 @@ data class MediaProviderRecord(
     @ColumnInfo(name = "data") val data: List<String>,
     @ColumnInfo(name = "mime_type") val mimeType: List<String>,
     @ColumnInfo(name = "intercepted") val intercepted: List<Boolean>,
+    @ColumnInfo(name = "event_count", defaultValue = "1") val eventCount: Int = 1,
+    @ColumnInfo(name = "last_time_millis", defaultValue = "0") val lastTimeMillis: Long = timeMillis,
+    @ColumnInfo(name = "sample_time_millis", defaultValue = "0") val sampleTimeMillis: Long = timeMillis,
+    @ColumnInfo(name = "sample_kind", defaultValue = "1") val sampleKind: Int = 1,
+    @ColumnInfo(name = "details_truncated", defaultValue = "0") val detailsTruncated: Boolean = false,
+    @ColumnInfo(name = "filter_applied", defaultValue = "0") val filterApplied: Boolean = false,
+    @ColumnInfo(name = "aggregate_key") val aggregateKey: String? = null,
 ) {
     @Ignore
     var packageInfo: PackageInfo? = null
@@ -52,6 +61,9 @@ data class MediaProviderRecord(
     var label: String? = null
 
     companion object {
+        private fun Cursor.optionalLong(name: String, fallback: Long): Long =
+            getColumnIndex(name).let { if (it < 0 || isNull(it)) fallback else getLong(it) }
+
         fun convert(cursor: Cursor): List<MediaProviderRecord> {
             if (cursor.count == 0) {
                 return emptyList()
@@ -73,9 +85,15 @@ data class MediaProviderRecord(
                     cursor.getString(packageNameColumn),
                     cursor.getInt(matchColumn),
                     cursor.getInt(operationColumn),
-                    ListConverter.fromString(cursor.getString(dataColumn)) ?: continue,
-                    ListConverter.fromString(cursor.getString(mimeTypeColumn)) ?: continue,
+                    ListConverter.fromString(cursor.getString(dataColumn)) ?: emptyList(),
+                    ListConverter.fromString(cursor.getString(mimeTypeColumn)) ?: emptyList(),
                     ListConverter.booleanListFromString(cursor.getString(interceptedColumn)),
+                    eventCount = cursor.optionalLong("event_count", 1).toInt(),
+                    lastTimeMillis = cursor.optionalLong("last_time_millis", cursor.getLong(timeMillisColumn)),
+                    sampleTimeMillis = cursor.optionalLong("sample_time_millis", cursor.getLong(timeMillisColumn)),
+                    sampleKind = cursor.optionalLong("sample_kind", 1).toInt(),
+                    detailsTruncated = cursor.optionalLong("details_truncated", 0) != 0L,
+                    filterApplied = cursor.optionalLong("filter_applied", 0) != 0L,
                 )
             }
             return records
@@ -85,26 +103,21 @@ data class MediaProviderRecord(
 
 @Dao
 interface MediaProviderRecordDao {
-    @Query("SELECT * FROM MediaProviderRecord WHERE time_millis BETWEEN (:start) AND (:end) AND operation IN (:operations) ORDER BY time_millis DESC")
-    fun loadForTimeMillis(
-        start: Long, end: Long, @MediaProviderOperation operations: IntArray
-    ): Cursor
+    @Query("SELECT * FROM UsageRecord WHERE id > (SELECT clear_before_id FROM RecordMaintenance WHERE id=1) AND time_millis BETWEEN (:start) AND (:end) AND operation IN (:operations) ORDER BY time_millis DESC, id DESC LIMIT 500")
+    fun loadForTimeMillis(start: Long, end: Long, @MediaProviderOperation operations: IntArray): Cursor
 
-    @Query("SELECT count(*) FROM MediaProviderRecord WHERE package_name IN (:packageNames) AND operation IN (:operation)")
-    fun packageUsageTimes(@MediaProviderOperation operation: Int, packageNames: Array<String>): Int
-
-    @Insert
-    fun insert(records: MediaProviderRecord)
-
-    @Insert
-    fun insertAll(records: List<MediaProviderRecord>)
-
-    @Delete
-    fun delete(record: MediaProviderRecord)
-
-    @Query("DELETE FROM MediaProviderRecord WHERE time_millis < :cutoff")
-    fun deleteOlderThan(cutoff: Long): Int
+    @Query("SELECT MIN(2147483647, COALESCE(SUM(event_count), 0)) FROM UsageRecord WHERE id > (SELECT clear_before_id FROM RecordMaintenance WHERE id=1) AND package_name IN (:packageNames) AND operation = :operation AND time_millis >= :cutoff")
+    fun packageUsageTimes(@MediaProviderOperation operation: Int, packageNames: Array<String>, cutoff: Long): Int
 }
+
+@Entity
+data class RecordMaintenance(
+    @PrimaryKey val id: Int = 1,
+    @ColumnInfo(name = "clear_before_id") val clearBeforeId: Long = 0,
+    @ColumnInfo(name = "legacy_cursor") val legacyCursor: Long = 0,
+    @ColumnInfo(name = "legacy_floor") val legacyFloor: Long = 0,
+    @ColumnInfo(name = "legacy_import_done") val legacyImportDone: Boolean = false,
+)
 
 @IntDef(value = [OP_QUERY, OP_INSERT, OP_DELETE])
 @kotlin.annotation.Retention(AnnotationRetention.SOURCE)
@@ -116,7 +129,7 @@ annotation class MediaProviderOperation {
     }
 }
 
-@Database(entities = [MediaProviderRecord::class], version = 3, exportSchema = false)
+@Database(entities = [MediaProviderRecord::class, RecordMaintenance::class], version = 4, exportSchema = false)
 @TypeConverters(ListConverter::class)
 abstract class MediaProviderRecordDatabase : RoomDatabase() {
     abstract fun mediaProviderRecordDao(): MediaProviderRecordDao
@@ -142,4 +155,18 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
                 "ON `MediaProviderRecord` (`package_name`, `operation`)",
         )
     }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        me.gm.cleaner.plugin.recording.RecordSchema.createTables(db)
+    }
+}
+
+// Jump directly to the bounded schema: do not build indexes or bulk-delete a potentially huge v1/v2 log.
+val MIGRATION_1_4 = object : Migration(1, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) { me.gm.cleaner.plugin.recording.RecordSchema.createTables(db) }
+}
+val MIGRATION_2_4 = object : Migration(2, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) { me.gm.cleaner.plugin.recording.RecordSchema.createTables(db) }
 }

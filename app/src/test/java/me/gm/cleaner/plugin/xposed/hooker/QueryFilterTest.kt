@@ -8,6 +8,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class QueryFilterTest {
+    @Test
+    fun diagnosticFlagsFollowSqlNullAndFixedCollectionSemantics() {
+        val rule = Template("sample", listOf("query"), listOf("test.app"), listOf(2), null)
+        assertFalse(QueryFilter.rejectsSample(listOf(rule), MediaTables.FILES, "/a.png", null, 1))
+        assertTrue(QueryFilter.rejectsSample(listOf(rule), MediaTables.IMAGES_MEDIA, "/a.png", null, null))
+        assertFalse(QueryFilter.rejectsSample(listOf(rule), MediaTables.DOWNLOADS, "/a.png", "image/png", 1))
+        assertFalse(QueryFilter.rejectsSample(listOf(rule), MediaTables.FILES, "/a.png", "image/png", 2))
+    }
+
+    @Test
+    fun diagnosticPathCaseRulesMatchSqliteAsciiLowerAndDirectoryBoundaries() {
+        val rule = Template("sample", listOf("query"), listOf("test.app"), null, listOf("/Pictures/A%_"))
+        assertTrue(QueryFilter.rejectsSample(listOf(rule), MediaTables.FILES, "/pictures/a%_/x.png", null, null))
+        assertFalse(QueryFilter.rejectsSample(listOf(rule), MediaTables.FILES, "/Pictures/A%_other/x.png", null, null))
+        val unicode = rule.copy(filterPath=listOf("/Ä"))
+        assertFalse(QueryFilter.rejectsSample(listOf(unicode), MediaTables.FILES, "/ä/x.png", null, null))
+    }
+
 
     @Test
     fun pathRulesMatchOnlyTheDirectoryAndItsChildren() {

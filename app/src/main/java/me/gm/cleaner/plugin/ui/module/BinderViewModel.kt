@@ -225,9 +225,14 @@ class BinderViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) { writeTemplateSp(what) }
     }
 
+    fun recordStorageStatus(): String = serviceCall("getRecordStorageStatus") { recordStorageStatus }
+        ?: "{\"state\":\"error\"}"
+
     fun clearAllTables() {
-        serviceCall("clearAllTables") {
-            clearAllTables()
+        val remote = service ?: error("Module service is unavailable")
+        try { remote.clearAllTables() } catch (failure: Exception) {
+            handleRemoteFailure("clearAllTables", failure)
+            throw failure
         }
     }
 
